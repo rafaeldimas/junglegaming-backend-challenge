@@ -216,8 +216,8 @@ event. The same policy is used by HTTP and SQS.
 ## Tests
 
 ```bash
-bun run test       # 69 unit tests with the Bun test runner, no Docker
-bun run test:e2e   # 31 integration/concurrency tests, Docker required
+bun run test       # 78 unit tests with the Bun test runner, no Docker
+bun run test:e2e   # 38 integration/concurrency tests, Docker required
 ```
 
 Unit tests run with `bun test` (the mandatory Bun test runner). The e2e suite

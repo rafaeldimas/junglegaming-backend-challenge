@@ -43,6 +43,11 @@ export class MutableClock implements Clock {
   advance(ms: number): void {
     this.current = new Date(this.current.getTime() + ms);
   }
+
+  /** Back to the fixed start of the test timeline. */
+  reset(): void {
+    this.current = new Date('2026-01-01T12:00:00.000Z');
+  }
 }
 
 export interface Harness {

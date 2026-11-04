@@ -14,7 +14,7 @@
     "start:dev": "nest start --watch",
     "start:debug": "nest start --debug --watch",
     "start:prod": "bun run dist/main.js",
-    "lint": "oxlint --type-aware src/ test/",
+    "lint": "oxlint --type-aware src/ test/ scripts/",
     "test": "bun test src/",
     "test:watch": "bun test --watch src/",
     "test:cov": "bun test --coverage src/",

@@ -51,6 +51,7 @@ afterAll(async () => {
 });
 
 beforeEach(async () => {
+  h.clock.reset();
   await h.reset();
 });
 
@@ -902,6 +903,56 @@ describe('transactional outbox', () => {
     expect(counts!.pending).toBe(0);
   });
 
+  it('reschedules a failed publish with backoff and publishes it later', async () => {
+    await drainQueue(h.env.SQS_EVENTS_QUEUE_NAME);
+    await createWallet(h, '100.00');
+
+    const failingPublisher = {
+      publish: async () => {
+        throw new Error('broker unavailable');
+      },
+    };
+    const failedAt = h.clock.now();
+    await new OutboxPublisherWorker(
+      h.uow,
+      failingPublisher,
+      h.clock,
+      h.env,
+    ).tick();
+
+    const [failed] = await h.sql<{
+      total: number;
+      pending: number;
+      attempts: number;
+      next_attempt_at: Date;
+    }>(
+      `select count(*)::int as total,
+              count(*) filter (where published_at is null)::int as pending,
+              max(attempts)::int as attempts,
+              min(next_attempt_at) as next_attempt_at
+         from outbox_messages`,
+    );
+    expect(failed!.total).toBe(2);
+    expect(failed!.pending).toBe(2);
+    expect(failed!.attempts).toBe(1);
+    expect(new Date(failed!.next_attempt_at).toISOString()).toBe(
+      new Date(failedAt.getTime() + 1_000).toISOString(),
+    );
+
+    // Still in backoff: nothing is published.
+    await h.outboxPublisher().tick();
+    expect(await queueDepth(h.env.SQS_EVENTS_QUEUE_NAME)).toBe(0);
+
+    h.clock.advance(2_000);
+    await h.outboxPublisher().tick();
+
+    const [published] = await h.sql<{ pending: number }>(
+      'select count(*) filter (where published_at is null)::int as pending from outbox_messages',
+    );
+    expect(published!.pending).toBe(0);
+    expect(await drainQueue(h.env.SQS_EVENTS_QUEUE_NAME)).toHaveLength(2);
+  });
+
   it('publishes after a restart when the process died before publishing', async () => {
     await drainQueue(h.env.SQS_EVENTS_QUEUE_NAME);
     const wallet = await createWallet(h, '100.00');
@@ -986,10 +1037,12 @@ describe('sqs consumer', () => {
     await wait(2_500);
     expect((await walletRow(h, wallet.id))!.balance).toBe('75.00');
 
-    const [inbox] = await h.sql<{ count: number }>(
-      'select count(*)::int as count from inbox_messages',
+    const [inbox] = await h.sql<{ count: number; processed: number }>(
+      `select count(*)::int as count,
+              count(*) filter (where processed_at is not null)::int as processed
+         from inbox_messages`,
     );
-    expect(inbox!.count).toBe(1);
+    expect(inbox).toEqual({ count: 1, processed: 1 });
 
     // Invalid payload and unknown wallet are permanent failures -> DLQ.
     await sendRaw(h.env.SQS_QUEUE_NAME, 'not-json', 'invalid');
