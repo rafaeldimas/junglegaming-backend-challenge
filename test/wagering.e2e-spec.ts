@@ -6,7 +6,11 @@ import {
   GetQueueAttributesCommand,
   SendMessageCommand,
 } from '@aws-sdk/client-sqs';
-import { WalletAlreadyExistsError } from '../src/platform/errors/application-error.js';
+import {
+  WalletAlreadyExistsError,
+  WalletNotFoundError,
+} from '../src/platform/errors/application-error.js';
+import type { ProcessWagerTransactionUseCase } from '../src/wagering/application/process-wager-transaction.use-case.js';
 import { FailureCode } from '../src/wagering/domain/failure-code.js';
 import {
   TransactionOrigin,
@@ -376,6 +380,31 @@ describe('inbox deduplication', () => {
               (select count(*)::int from wallet_ledger_entries where direction = 'DEBIT') as debits`,
     );
     expect(counts).toEqual({ inbox: 1, debits: 1 });
+  });
+
+  it('rolls back the inbox row when the financial transaction fails', async () => {
+    const wallet = await createWallet(h, '100.00');
+    const command = {
+      ...commandFor(wallet),
+      walletId: crypto.randomUUID(),
+    };
+
+    await expect(
+      submit(h, command, {
+        origin: TransactionOrigin.Sqs,
+        inbox: {
+          consumerName: 'sqs:wager-transactions',
+          messageId: 'msg-rollback',
+          receivedAt: h.clock.now(),
+        },
+      }),
+    ).rejects.toBeInstanceOf(WalletNotFoundError);
+
+    const [counts] = await h.sql<{ inbox: number }>(
+      'select count(*)::int as inbox from inbox_messages',
+    );
+    expect(counts!.inbox).toBe(0);
+    expect((await walletRow(h, wallet.id))!.balance).toBe('100.00');
   });
 
   it('deduplicates a different message id carrying the same business payload', async () => {
@@ -899,6 +928,57 @@ describe('sqs consumer', () => {
     }
     expect(dlq).toBeGreaterThanOrEqual(2);
     await expectReconciled(wallet.id);
+  }, 120_000);
+});
+
+describe('sqs retries', () => {
+  it('redelivers transient failures until the attempt limit and then dead-letters', async () => {
+    await drainQueue(h.env.SQS_QUEUE_NAME);
+    await drainQueue(h.env.SQS_DLQ_NAME);
+
+    const failingUseCase = {
+      execute: async () => {
+        throw new Error('database unavailable');
+      },
+    } as unknown as ProcessWagerTransactionUseCase;
+
+    const consumer = new SqsConsumer(
+      h.sqs,
+      h.queues,
+      failingUseCase,
+      h.clock,
+      h.env,
+    );
+    await consumer.onApplicationBootstrap();
+
+    try {
+      const wallet = await createWallet(h, '100.00');
+      await sendRaw(
+        h.env.SQS_QUEUE_NAME,
+        JSON.stringify({
+          messageId: `msg-${crypto.randomUUID()}`,
+          type: 'WagerTransactionRequested',
+          occurredAt: h.clock.now().toISOString(),
+          data: {
+            ...commandFor(wallet, { money: brl('10.00') }),
+            money: { amount: '10.00', currency: 'BRL' },
+          },
+        }),
+        wallet.id,
+      );
+
+      let dlq = 0;
+      for (let attempt = 0; attempt < 60 && dlq === 0; attempt += 1) {
+        await wait(500);
+        dlq = await queueDepth(h.env.SQS_DLQ_NAME);
+      }
+      expect(dlq).toBeGreaterThanOrEqual(1);
+      // No financial effect: the use case always failed.
+      expect((await walletRow(h, wallet.id))!.balance).toBe('100.00');
+      await expectReconciled(wallet.id);
+    } finally {
+      await consumer.onApplicationShutdown();
+    }
   }, 120_000);
 });
 
