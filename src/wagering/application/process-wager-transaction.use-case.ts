@@ -155,30 +155,9 @@ export class ProcessWagerTransactionUseCase {
       }
     }
 
-    const existing = await ctx.wagerTransactions.findByIdempotencyKey(
-      command.providerId,
-      command.idempotencyKey,
-    );
+    const existing = await this.findExisting(ctx, command, payloadHash);
     if (existing !== null) {
-      if (!existing.matchesPayload(payloadHash)) {
-        metrics.idempotencyConflicts.inc();
-        throw new IdempotencyConflictError(
-          `Idempotency key ${command.idempotencyKey} was already used with a different payload`,
-          { transactionId: existing.id },
-        );
-      }
-      metrics.idempotentReplays.inc();
-      return this.replay(existing, true, false);
-    }
-
-    const sameExternalId = await ctx.wagerTransactions.findByProviderExternalId(
-      command.providerId,
-      command.externalTransactionId,
-    );
-    if (sameExternalId !== null) {
-      throw new ExternalTransactionConflictError(
-        `External transaction ${command.externalTransactionId} is already known under another idempotency key`,
-      );
+      return existing;
     }
 
     // The wallet id is a foreign key, so an unknown wallet is a missing
@@ -241,30 +220,9 @@ export class ProcessWagerTransactionUseCase {
     payloadHash: string,
     _options: ProcessWagerTransactionOptions,
   ): Promise<ProcessWagerTransactionResult> {
-    const existing = await ctx.wagerTransactions.findByIdempotencyKey(
-      command.providerId,
-      command.idempotencyKey,
-    );
+    const existing = await this.findExisting(ctx, command, payloadHash);
     if (existing !== null) {
-      if (!existing.matchesPayload(payloadHash)) {
-        metrics.idempotencyConflicts.inc();
-        throw new IdempotencyConflictError(
-          `Idempotency key ${command.idempotencyKey} was already used with a different payload`,
-          { transactionId: existing.id },
-        );
-      }
-      metrics.idempotentReplays.inc();
-      return this.replay(existing, true, false);
-    }
-
-    const sameExternalId = await ctx.wagerTransactions.findByProviderExternalId(
-      command.providerId,
-      command.externalTransactionId,
-    );
-    if (sameExternalId !== null) {
-      throw new ExternalTransactionConflictError(
-        `External transaction ${command.externalTransactionId} is already known under another idempotency key`,
-      );
+      return existing;
     }
 
     // A unique constraint other than the idempotency keys fired (for example
@@ -273,6 +231,56 @@ export class ProcessWagerTransactionUseCase {
     throw new IdempotencyConflictError(
       'Concurrent transaction conflict, retry the request',
     );
+  }
+
+  /**
+   * Resolves an already-known request. The idempotency key is the source of
+   * truth, but under concurrency the winner can commit between the two
+   * lookups, or the unique violation can be raised by the external-id index.
+   * The row found by external id is therefore inspected: if it carries the
+   * same idempotency key it is the same request and the answer is a replay.
+   */
+  private async findExisting(
+    ctx: TransactionContext,
+    command: WagerTransactionCommand,
+    payloadHash: string,
+  ): Promise<ProcessWagerTransactionResult | null> {
+    const byKey = await ctx.wagerTransactions.findByIdempotencyKey(
+      command.providerId,
+      command.idempotencyKey,
+    );
+    if (byKey !== null) {
+      return this.replayOrConflict(byKey, payloadHash);
+    }
+
+    const byExternalId = await ctx.wagerTransactions.findByProviderExternalId(
+      command.providerId,
+      command.externalTransactionId,
+    );
+    if (byExternalId === null) {
+      return null;
+    }
+    if (byExternalId.idempotencyKey === command.idempotencyKey) {
+      return this.replayOrConflict(byExternalId, payloadHash);
+    }
+    throw new ExternalTransactionConflictError(
+      `External transaction ${command.externalTransactionId} is already known under another idempotency key`,
+    );
+  }
+
+  private replayOrConflict(
+    transaction: WagerTransaction,
+    payloadHash: string,
+  ): ProcessWagerTransactionResult {
+    if (!transaction.matchesPayload(payloadHash)) {
+      metrics.idempotencyConflicts.inc();
+      throw new IdempotencyConflictError(
+        `Idempotency key ${transaction.idempotencyKey} was already used with a different payload`,
+        { transactionId: transaction.id },
+      );
+    }
+    metrics.idempotentReplays.inc();
+    return this.replay(transaction, true, false);
   }
 
   private async createOrReject(
