@@ -498,7 +498,7 @@ Status mapping (consistent across endpoints):
 | `404 Not Found` | wallet/transaction does not exist |
 | `409 Conflict` | idempotency conflict, external id conflict, duplicate wallet |
 | `422 Unprocessable Entity` | business rejection with a `failureCode` |
-| `503 Service Unavailable` | transient infrastructure failure |
+| `503 Service Unavailable` | transient infrastructure failure (connection-level SQLSTATEs such as `08xxx`, `57P03`, `53300`, and socket errors like `ECONNREFUSED`/`ETIMEDOUT`) |
 | `500 Internal Server Error` | unexpected programming error |
 
 Business rejections are `422` and carry the stable `failureCode`, so a provider

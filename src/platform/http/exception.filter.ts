@@ -7,7 +7,11 @@ import {
 } from '@nestjs/common';
 import { Response } from 'express';
 import { DomainError } from '../../shared/domain/errors.js';
-import { ApplicationError } from '../errors/application-error.js';
+import {
+  ApplicationError,
+  InfrastructureUnavailableError,
+} from '../errors/application-error.js';
+import { isTransientInfrastructureError } from '../database/unit-of-work.js';
 import { getLogContext } from '../logging/log-context.js';
 import { logger } from '../logging/logger.js';
 
@@ -65,6 +69,17 @@ export class AllExceptionsFilter implements ExceptionFilter {
       response
         .status(status)
         .json(this.body(`HTTP_${status}`, message, correlationId));
+      return;
+    }
+
+    if (isTransientInfrastructureError(exception)) {
+      const unavailable = new InfrastructureUnavailableError(
+        'A required dependency is unavailable',
+      );
+      logger.warn({ err: exception }, 'transient infrastructure failure');
+      response
+        .status(unavailable.httpStatus)
+        .json(this.body(unavailable.code, unavailable.message, correlationId));
       return;
     }
 

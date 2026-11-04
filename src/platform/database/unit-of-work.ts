@@ -13,6 +13,21 @@ const RETRYABLE_SQL_STATES = new Set([
 ]);
 const LOCK_CONFLICT_SQL_STATES = new Set(['40P01', '55P03']);
 
+/** Connection-level failures: the request may succeed if retried later. */
+const TRANSIENT_CONNECTION_SQL_STATES = new Set([
+  '57P01', // admin_shutdown
+  '57P02', // crash_shutdown
+  '57P03', // cannot_connect_now
+  '53300', // too_many_connections
+]);
+const TRANSIENT_NODE_ERROR_CODES = new Set([
+  'ECONNREFUSED',
+  'ECONNRESET',
+  'ETIMEDOUT',
+  'ENOTFOUND',
+  'EAI_AGAIN',
+]);
+
 export class MikroOrmUnitOfWork implements UnitOfWork {
   constructor(private readonly orm: MikroORM) {}
 
@@ -65,6 +80,36 @@ export function findSqlState(error: unknown): string | undefined {
     current = candidate.cause;
   }
   return undefined;
+}
+
+/**
+ * True when the failure means "the dependency is unavailable right now", which
+ * the HTTP layer maps to 503 so providers retry instead of fixing the payload.
+ */
+export function isTransientInfrastructureError(error: unknown): boolean {
+  const sqlState = findSqlState(error);
+  if (
+    sqlState !== undefined &&
+    (sqlState.startsWith('08') || TRANSIENT_CONNECTION_SQL_STATES.has(sqlState))
+  ) {
+    return true;
+  }
+  let current: unknown = error;
+  for (
+    let depth = 0;
+    depth < 5 && current !== null && typeof current === 'object';
+    depth += 1
+  ) {
+    const candidate = current as { code?: unknown; cause?: unknown };
+    if (
+      typeof candidate.code === 'string' &&
+      TRANSIENT_NODE_ERROR_CODES.has(candidate.code)
+    ) {
+      return true;
+    }
+    current = candidate.cause;
+  }
+  return false;
 }
 
 export function isUniqueViolation(error: unknown): boolean {
