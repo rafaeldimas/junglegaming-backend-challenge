@@ -76,7 +76,10 @@ export class OutboxMessage {
   }
 
   isDue(now: Date): boolean {
-    return this.isPending() && (this._nextAttemptAt === undefined || this._nextAttemptAt <= now);
+    return (
+      this.isPending() &&
+      (this._nextAttemptAt === undefined || this._nextAttemptAt <= now)
+    );
   }
 
   markPublished(at: Date): void {
@@ -86,7 +89,10 @@ export class OutboxMessage {
   /** Increments attempts and schedules the next attempt with capped exponential backoff. */
   scheduleRetry(now: Date): void {
     this._attempts += 1;
-    const delay = Math.min(BASE_RETRY_MS * 2 ** (this._attempts - 1), MAX_RETRY_MS);
+    const delay = Math.min(
+      BASE_RETRY_MS * 2 ** (this._attempts - 1),
+      MAX_RETRY_MS,
+    );
     this._nextAttemptAt = new Date(now.getTime() + delay);
   }
 }

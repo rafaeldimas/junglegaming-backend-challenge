@@ -35,7 +35,11 @@ export interface LedgerPageResult {
 export class GetWalletLedgerUseCase {
   constructor(private readonly uow: UnitOfWork) {}
 
-  async execute(walletId: string, cursor: LedgerCursor | null, limit: number): Promise<LedgerPageResult> {
+  async execute(
+    walletId: string,
+    cursor: LedgerCursor | null,
+    limit: number,
+  ): Promise<LedgerPageResult> {
     return this.uow.execute(async (ctx) => {
       const wallet = await ctx.wallets.findById(walletId);
       if (wallet === null) {
@@ -52,7 +56,8 @@ export class GetWalletLedgerUseCase {
           balanceAfter: entry.balanceAfter,
           createdAt: entry.createdAt,
         })),
-        nextCursor: page.nextCursor === null ? null : encodeLedgerCursor(page.nextCursor),
+        nextCursor:
+          page.nextCursor === null ? null : encodeLedgerCursor(page.nextCursor),
       };
     });
   }

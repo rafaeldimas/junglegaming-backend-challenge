@@ -1,4 +1,9 @@
-import { Inject, Injectable, OnApplicationBootstrap, OnApplicationShutdown } from '@nestjs/common';
+import {
+  Inject,
+  Injectable,
+  OnApplicationBootstrap,
+  OnApplicationShutdown,
+} from '@nestjs/common';
 import { Message } from '@aws-sdk/client-sqs';
 import type { AppEnv } from '../../config/env.js';
 import type { Clock } from '../../shared/domain/clock.js';
@@ -6,7 +11,10 @@ import { CLOCK } from '../../shared/domain/clock.js';
 import { DomainError } from '../../shared/domain/errors.js';
 import { metrics } from '../../platform/observability/metrics.js';
 import { logger } from '../../platform/logging/logger.js';
-import { enrichLogContext, runWithLogContext } from '../../platform/logging/log-context.js';
+import {
+  enrichLogContext,
+  runWithLogContext,
+} from '../../platform/logging/log-context.js';
 import {
   ApplicationError,
   ExternalTransactionConflictError,
@@ -36,7 +44,9 @@ export const WAGER_CONSUMER_NAME = 'sqs:wager-transactions';
  * - transient failures leave the message for redelivery (visibility timeout).
  */
 @Injectable()
-export class SqsConsumer implements OnApplicationBootstrap, OnApplicationShutdown {
+export class SqsConsumer
+  implements OnApplicationBootstrap, OnApplicationShutdown
+{
   private running = false;
   private loopPromise?: Promise<void>;
   private abortController?: AbortController;
@@ -69,7 +79,10 @@ export class SqsConsumer implements OnApplicationBootstrap, OnApplicationShutdow
       new Promise<void>((resolve) => setTimeout(resolve, grace)),
     ]);
     if (this.loopPromise !== undefined) {
-      await Promise.race([this.loopPromise, new Promise<void>((resolve) => setTimeout(resolve, grace))]);
+      await Promise.race([
+        this.loopPromise,
+        new Promise<void>((resolve) => setTimeout(resolve, grace)),
+      ]);
     }
   }
 
@@ -87,7 +100,9 @@ export class SqsConsumer implements OnApplicationBootstrap, OnApplicationShutdow
           signal: this.abortController.signal,
         });
 
-        const tasks = messages.map((message) => this.track(this.handle(message)));
+        const tasks = messages.map((message) =>
+          this.track(this.handle(message)),
+        );
         await Promise.allSettled(tasks);
       } catch (error) {
         if (!this.running) {
@@ -110,13 +125,19 @@ export class SqsConsumer implements OnApplicationBootstrap, OnApplicationShutdow
     try {
       parsed = parseQueueEnvelope(JSON.parse(message.Body ?? ''));
     } catch (error) {
-      logger.warn({ err: error, sqsMessageId: message.MessageId }, 'invalid queue payload; moving to DLQ');
+      logger.warn(
+        { err: error, sqsMessageId: message.MessageId },
+        'invalid queue payload; moving to DLQ',
+      );
       await this.moveToDlq(message, 'INVALID_PAYLOAD');
       return;
     }
 
     const correlationId =
-      message.MessageAttributes?.correlationId?.StringValue ?? parsed.messageId ?? message.MessageId ?? 'unknown';
+      message.MessageAttributes?.correlationId?.StringValue ??
+      parsed.messageId ??
+      message.MessageId ??
+      'unknown';
 
     await runWithLogContext(
       {
@@ -136,7 +157,9 @@ export class SqsConsumer implements OnApplicationBootstrap, OnApplicationShutdow
               receivedAt: this.clock.now(),
             },
           });
-          enrichLogContext({ transactionId: result.transactionId ?? undefined });
+          enrichLogContext({
+            transactionId: result.transactionId ?? undefined,
+          });
           await this.ack(message);
           logger.info(
             {
@@ -157,9 +180,14 @@ export class SqsConsumer implements OnApplicationBootstrap, OnApplicationShutdow
             return;
           }
 
-          const receiveCount = Number(message.Attributes?.ApproximateReceiveCount ?? '1');
+          const receiveCount = Number(
+            message.Attributes?.ApproximateReceiveCount ?? '1',
+          );
           if (receiveCount >= this.env.SQS_MAX_ATTEMPTS) {
-            logger.error({ err: error, receiveCount }, 'max attempts reached; moving message to DLQ');
+            logger.error(
+              { err: error, receiveCount },
+              'max attempts reached; moving message to DLQ',
+            );
             await this.moveToDlq(message, 'MAX_ATTEMPTS_EXCEEDED');
             return;
           }
@@ -178,16 +206,26 @@ export class SqsConsumer implements OnApplicationBootstrap, OnApplicationShutdow
     if (message.ReceiptHandle === undefined) {
       return;
     }
-    await this.client.deleteMessage(await this.queues.main(), message.ReceiptHandle);
+    await this.client.deleteMessage(
+      await this.queues.main(),
+      message.ReceiptHandle,
+    );
   }
 
   private async moveToDlq(message: Message, reason: string): Promise<void> {
     const body = message.Body ?? '';
-    const parsed = safeJson(body) as
-      | { aggregateId?: string; correlationId?: string; data?: { walletId?: string } }
-      | null;
-    const groupId = parsed?.aggregateId ?? parsed?.data?.walletId ?? message.MessageId ?? 'unknown';
-    const correlationId = parsed?.correlationId ?? message.MessageId ?? 'unknown';
+    const parsed = safeJson(body) as {
+      aggregateId?: string;
+      correlationId?: string;
+      data?: { walletId?: string };
+    } | null;
+    const groupId =
+      parsed?.aggregateId ??
+      parsed?.data?.walletId ??
+      message.MessageId ??
+      'unknown';
+    const correlationId =
+      parsed?.correlationId ?? message.MessageId ?? 'unknown';
 
     await this.client.sendMessage({
       queueUrl: await this.queues.dlq(),
@@ -198,7 +236,10 @@ export class SqsConsumer implements OnApplicationBootstrap, OnApplicationShutdow
       correlationId,
     });
     metrics.dlqMessages.inc();
-    logger.warn({ reason, messageId: message.MessageId }, 'message moved to DLQ');
+    logger.warn(
+      { reason, messageId: message.MessageId },
+      'message moved to DLQ',
+    );
     await this.ack(message);
   }
 }

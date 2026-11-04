@@ -1,4 +1,9 @@
-import { Injectable, OnApplicationBootstrap, OnApplicationShutdown, Inject } from '@nestjs/common';
+import {
+  Injectable,
+  OnApplicationBootstrap,
+  OnApplicationShutdown,
+  Inject,
+} from '@nestjs/common';
 import type { AppEnv } from '../../config/env.js';
 import type { UnitOfWork } from '../../platform/database/transaction-context.js';
 import type { Clock } from '../../shared/domain/clock.js';
@@ -16,7 +21,9 @@ import { PeriodicWorker } from '../workers/periodic-worker.js';
  * event; consumers deduplicate, so duplicates are safe (at-least-once).
  */
 @Injectable()
-export class OutboxPublisherWorker implements OnApplicationBootstrap, OnApplicationShutdown {
+export class OutboxPublisherWorker
+  implements OnApplicationBootstrap, OnApplicationShutdown
+{
   private readonly worker: PeriodicWorker;
 
   constructor(
@@ -25,7 +32,11 @@ export class OutboxPublisherWorker implements OnApplicationBootstrap, OnApplicat
     @Inject(CLOCK) private readonly clock: Clock,
     private readonly env: AppEnv,
   ) {
-    this.worker = new PeriodicWorker('outbox-publisher', env.OUTBOX_POLL_INTERVAL_MS, () => this.tick());
+    this.worker = new PeriodicWorker(
+      'outbox-publisher',
+      env.OUTBOX_POLL_INTERVAL_MS,
+      () => this.tick(),
+    );
   }
 
   onApplicationBootstrap(): void {
@@ -51,22 +62,30 @@ export class OutboxPublisherWorker implements OnApplicationBootstrap, OnApplicat
       // order, while different aggregates are published concurrently. This is
       // what lets the publisher keep up with a burst of transactions.
       const groups = groupByAggregate(due);
-      await runWithConcurrency(groups, this.env.OUTBOX_PUBLISH_CONCURRENCY, async (group) => {
-        for (const message of group) {
-          try {
-            await this.publisher.publish(message.payload);
-            message.markPublished(this.clock.now());
-            metrics.outboxPublished.inc();
-          } catch (error) {
-            message.scheduleRetry(now);
-            metrics.outboxPublishFailures.inc();
-            logger.warn(
-              { eventType: message.eventType, attempts: message.attempts, err: error },
-              'outbox publish failed; retry scheduled',
-            );
+      await runWithConcurrency(
+        groups,
+        this.env.OUTBOX_PUBLISH_CONCURRENCY,
+        async (group) => {
+          for (const message of group) {
+            try {
+              await this.publisher.publish(message.payload);
+              message.markPublished(this.clock.now());
+              metrics.outboxPublished.inc();
+            } catch (error) {
+              message.scheduleRetry(now);
+              metrics.outboxPublishFailures.inc();
+              logger.warn(
+                {
+                  eventType: message.eventType,
+                  attempts: message.attempts,
+                  err: error,
+                },
+                'outbox publish failed; retry scheduled',
+              );
+            }
           }
-        }
-      });
+        },
+      );
 
       await ctx.outbox.save(due);
     });
@@ -76,12 +95,18 @@ export class OutboxPublisherWorker implements OnApplicationBootstrap, OnApplicat
     metrics.outboxLag.set(
       stats.oldestOccurredAt === null
         ? 0
-        : Math.max(0, (this.clock.now().getTime() - stats.oldestOccurredAt.getTime()) / 1000),
+        : Math.max(
+            0,
+            (this.clock.now().getTime() - stats.oldestOccurredAt.getTime()) /
+              1000,
+          ),
     );
   }
 }
 
-function groupByAggregate<T extends { aggregateId: string }>(messages: T[]): T[][] {
+function groupByAggregate<T extends { aggregateId: string }>(
+  messages: T[],
+): T[][] {
   const groups = new Map<string, T[]>();
   for (const message of messages) {
     const group = groups.get(message.aggregateId);
@@ -100,14 +125,17 @@ async function runWithConcurrency<T>(
   work: (item: T) => Promise<void>,
 ): Promise<void> {
   const queue = [...items];
-  const workers = Array.from({ length: Math.min(Math.max(concurrency, 1), queue.length) }, async () => {
-    for (;;) {
-      const item = queue.shift();
-      if (item === undefined) {
-        return;
+  const workers = Array.from(
+    { length: Math.min(Math.max(concurrency, 1), queue.length) },
+    async () => {
+      for (;;) {
+        const item = queue.shift();
+        if (item === undefined) {
+          return;
+        }
+        await work(item);
       }
-      await work(item);
-    }
-  });
+    },
+  );
   await Promise.all(workers);
 }

@@ -1,4 +1,7 @@
-import { InvalidMoneyError, InvalidWalletOperationError } from '../../shared/domain/errors.js';
+import {
+  InvalidMoneyError,
+  InvalidWalletOperationError,
+} from '../../shared/domain/errors.js';
 import { Money } from '../../shared/domain/money.js';
 
 export enum LedgerDirection {
@@ -39,31 +42,48 @@ export class WalletLedgerEntry {
 
   static create(props: CreateLedgerEntryProps): WalletLedgerEntry {
     if (props.id.length === 0) {
-      throw new InvalidWalletOperationError('Ledger entry id must not be empty');
+      throw new InvalidWalletOperationError(
+        'Ledger entry id must not be empty',
+      );
     }
     if (props.walletId.length === 0) {
-      throw new InvalidWalletOperationError('Ledger entry walletId must not be empty');
+      throw new InvalidWalletOperationError(
+        'Ledger entry walletId must not be empty',
+      );
     }
     if (props.transactionId.length === 0) {
-      throw new InvalidWalletOperationError('Ledger entry transactionId must not be empty');
+      throw new InvalidWalletOperationError(
+        'Ledger entry transactionId must not be empty',
+      );
     }
     if (props.money.isNegative() || props.money.isZero()) {
-      throw new InvalidMoneyError('Ledger entry amount must be strictly positive');
+      throw new InvalidMoneyError(
+        'Ledger entry amount must be strictly positive',
+      );
     }
-    if (!(props.createdAt instanceof Date) || Number.isNaN(props.createdAt.getTime())) {
-      throw new InvalidWalletOperationError('Ledger entry createdAt must be a valid date');
+    if (
+      !(props.createdAt instanceof Date) ||
+      Number.isNaN(props.createdAt.getTime())
+    ) {
+      throw new InvalidWalletOperationError(
+        'Ledger entry createdAt must be a valid date',
+      );
     }
 
     // Throws CurrencyMismatchError when any currency differs.
     const balances = [props.money, props.balanceBefore, props.balanceAfter];
     for (const money of balances) {
       if (money.currency !== balances[0]!.currency) {
-        throw new InvalidWalletOperationError('Ledger entry amounts must share the same currency');
+        throw new InvalidWalletOperationError(
+          'Ledger entry amounts must share the same currency',
+        );
       }
     }
 
     if (props.balanceBefore.isNegative() || props.balanceAfter.isNegative()) {
-      throw new InvalidWalletOperationError('Ledger balances must never be negative');
+      throw new InvalidWalletOperationError(
+        'Ledger balances must never be negative',
+      );
     }
 
     const expectedAfter =

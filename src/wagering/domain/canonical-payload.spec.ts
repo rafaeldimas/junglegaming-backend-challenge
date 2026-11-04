@@ -1,9 +1,15 @@
 import { Money } from '../../shared/domain/money.js';
-import { canonicalWagerPayload, hashWagerPayload, stableStringify } from './canonical-payload.js';
+import {
+  canonicalWagerPayload,
+  hashWagerPayload,
+  stableStringify,
+} from './canonical-payload.js';
 
 const money = Money.from({ amount: '25', currency: 'BRL' });
 
-function payload(overrides: Partial<Parameters<typeof canonicalWagerPayload>[0]> = {}) {
+function payload(
+  overrides: Partial<Parameters<typeof canonicalWagerPayload>[0]> = {},
+) {
   return canonicalWagerPayload({
     providerId: 'provider-a',
     externalTransactionId: 'external-1',
@@ -19,7 +25,9 @@ function payload(overrides: Partial<Parameters<typeof canonicalWagerPayload>[0]>
 
 describe('canonical payload', () => {
   it('sorts keys recursively', () => {
-    expect(stableStringify({ b: 1, a: { d: 2, c: 3 } })).toBe('{"a":{"c":3,"d":2},"b":1}');
+    expect(stableStringify({ b: 1, a: { d: 2, c: 3 } })).toBe(
+      '{"a":{"c":3,"d":2},"b":1}',
+    );
     expect(stableStringify([{ b: 1, a: 2 }])).toBe('[{"a":2,"b":1}]');
   });
 
@@ -31,16 +39,22 @@ describe('canonical payload', () => {
 
   it('normalizes money to scale 2', () => {
     expect(payload()).toContain('"money":{"amount":"25.00","currency":"BRL"}');
-    expect(payload({ money: Money.from({ amount: '25.00', currency: 'BRL' }) })).toBe(payload());
+    expect(
+      payload({ money: Money.from({ amount: '25.00', currency: 'BRL' }) }),
+    ).toBe(payload());
   });
 
   it('treats an absent reference as null', () => {
     expect(payload()).toBe(payload({ referenceExternalTransactionId: null }));
-    expect(payload()).toBe(payload({ referenceExternalTransactionId: undefined }));
+    expect(payload()).toBe(
+      payload({ referenceExternalTransactionId: undefined }),
+    );
   });
 
   it('ignores transport data: only business fields are hashed', () => {
-    const withReference = payload({ referenceExternalTransactionId: 'external-0' });
+    const withReference = payload({
+      referenceExternalTransactionId: 'external-0',
+    });
     expect(withReference).not.toBe(payload());
   });
 

@@ -39,7 +39,9 @@ export class Money {
 
   static from(props: MoneyProps): Money {
     if (props === null || typeof props !== 'object') {
-      throw new InvalidMoneyError('Money must be an object with amount and currency');
+      throw new InvalidMoneyError(
+        'Money must be an object with amount and currency',
+      );
     }
 
     const { amount, currency } = props;
@@ -58,7 +60,9 @@ export class Money {
       throw new InvalidMoneyError('Money amount must not be empty');
     }
     if (!CURRENCY_PATTERN.test(currency)) {
-      throw new InvalidMoneyError(`Invalid ISO-4217 currency code: "${currency}"`);
+      throw new InvalidMoneyError(
+        `Invalid ISO-4217 currency code: "${currency}"`,
+      );
     }
     if (!AMOUNT_PATTERN.test(normalizedAmount)) {
       throw new InvalidMoneyError(
@@ -68,7 +72,9 @@ export class Money {
 
     const value = new DecimalMoney(normalizedAmount);
     if (!value.isFinite()) {
-      throw new InvalidMoneyError(`Invalid money amount "${amount}": must be finite`);
+      throw new InvalidMoneyError(
+        `Invalid money amount "${amount}": must be finite`,
+      );
     }
 
     return new Money(value, currency);
@@ -76,7 +82,9 @@ export class Money {
 
   static zero(currency: string): Money {
     if (!CURRENCY_PATTERN.test(currency)) {
-      throw new InvalidMoneyError(`Invalid ISO-4217 currency code: "${currency}"`);
+      throw new InvalidMoneyError(
+        `Invalid ISO-4217 currency code: "${currency}"`,
+      );
     }
     return new Money(new DecimalMoney(0), currency);
   }

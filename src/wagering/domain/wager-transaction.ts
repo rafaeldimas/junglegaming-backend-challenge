@@ -1,4 +1,7 @@
-import { InvalidMoneyError, InvalidTransactionStateError } from '../../shared/domain/errors.js';
+import {
+  InvalidMoneyError,
+  InvalidTransactionStateError,
+} from '../../shared/domain/errors.js';
 import { Money } from '../../shared/domain/money.js';
 import { LedgerDirection } from '../../wallets/domain/wallet-ledger-entry.js';
 import { FailureCode } from './failure-code.js';
@@ -145,14 +148,20 @@ export class WagerTransaction {
    * REFUND without a reference). Reference presence is not enforced because the
    * absence is exactly the reason for the rejection.
    */
-  static createRejected(props: CreateWagerTransactionProps, code: FailureCode): WagerTransaction {
+  static createRejected(
+    props: CreateWagerTransactionProps,
+    code: FailureCode,
+  ): WagerTransaction {
     const transaction = WagerTransaction.build(props, false);
     transaction._status = WagerTransactionStatus.Rejected;
     transaction._failureCode = code;
     return transaction;
   }
 
-  private static build(props: CreateWagerTransactionProps, enforceReference: boolean): WagerTransaction {
+  private static build(
+    props: CreateWagerTransactionProps,
+    enforceReference: boolean,
+  ): WagerTransaction {
     assertNonEmpty(props.id, 'id');
     assertNonEmpty(props.providerId, 'providerId');
     assertNonEmpty(props.externalTransactionId, 'externalTransactionId');
@@ -165,21 +174,46 @@ export class WagerTransaction {
     assertNonEmpty(props.correlationId, 'correlationId');
     assertValidDate(props.createdAt, 'createdAt');
 
-    if (props.kind === WagerTransactionKind.Opening && props.origin !== TransactionOrigin.Internal) {
-      throw new InvalidTransactionStateError(props.id, 'NEW', 'submit an internal OPENING transaction externally');
+    if (
+      props.kind === WagerTransactionKind.Opening &&
+      props.origin !== TransactionOrigin.Internal
+    ) {
+      throw new InvalidTransactionStateError(
+        props.id,
+        'NEW',
+        'submit an internal OPENING transaction externally',
+      );
     }
-    if (props.kind !== WagerTransactionKind.Opening && props.origin === TransactionOrigin.Internal) {
-      throw new InvalidTransactionStateError(props.id, 'NEW', 'create an external transaction as INTERNAL');
+    if (
+      props.kind !== WagerTransactionKind.Opening &&
+      props.origin === TransactionOrigin.Internal
+    ) {
+      throw new InvalidTransactionStateError(
+        props.id,
+        'NEW',
+        'create an external transaction as INTERNAL',
+      );
     }
 
     if (props.money.isNegative() || props.money.isZero()) {
-      throw new InvalidMoneyError('Wager transaction amount must be strictly positive');
+      throw new InvalidMoneyError(
+        'Wager transaction amount must be strictly positive',
+      );
     }
 
     if (props.referenceExternalTransactionId !== undefined) {
-      assertNonEmpty(props.referenceExternalTransactionId, 'referenceExternalTransactionId');
-      if (props.referenceExternalTransactionId === props.externalTransactionId) {
-        throw new InvalidTransactionStateError(props.id, 'NEW', 'reference itself');
+      assertNonEmpty(
+        props.referenceExternalTransactionId,
+        'referenceExternalTransactionId',
+      );
+      if (
+        props.referenceExternalTransactionId === props.externalTransactionId
+      ) {
+        throw new InvalidTransactionStateError(
+          props.id,
+          'NEW',
+          'reference itself',
+        );
       }
     }
 
@@ -188,7 +222,11 @@ export class WagerTransaction {
       REQUIRES_REFERENCE.has(props.kind) &&
       props.referenceExternalTransactionId === undefined
     ) {
-      throw new InvalidTransactionStateError(props.id, 'NEW', `create ${props.kind} without a reference`);
+      throw new InvalidTransactionStateError(
+        props.id,
+        'NEW',
+        `create ${props.kind} without a reference`,
+      );
     }
 
     return new WagerTransaction(
@@ -285,7 +323,12 @@ export class WagerTransaction {
     return this._nextReferenceRetryAt;
   }
 
-  markProcessed(referenceTransactionId: string | undefined, at: Date, balanceAfter?: Money, walletVersionAfter?: number): void {
+  markProcessed(
+    referenceTransactionId: string | undefined,
+    at: Date,
+    balanceAfter?: Money,
+    walletVersionAfter?: number,
+  ): void {
     this.assertNotTerminal('markProcessed');
     assertValidDate(at, 'processedAt');
     this._status = WagerTransactionStatus.Processed;
@@ -340,7 +383,10 @@ export class WagerTransaction {
 
   /** LOSS records a result without moving money; terminal rejections never move money. */
   affectsBalance(): boolean {
-    return BALANCE_AFFECTING.has(this.kind) && this._status !== WagerTransactionStatus.Rejected;
+    return (
+      BALANCE_AFFECTING.has(this.kind) &&
+      this._status !== WagerTransactionStatus.Rejected
+    );
   }
 
   requiresReference(): boolean {
@@ -364,10 +410,18 @@ export class WagerTransaction {
       case WagerTransactionKind.Bet:
         return LedgerDirection.Debit;
       case WagerTransactionKind.Loss:
-        throw new InvalidTransactionStateError(this.id, this._status, 'derive a ledger direction for LOSS');
+        throw new InvalidTransactionStateError(
+          this.id,
+          this._status,
+          'derive a ledger direction for LOSS',
+        );
       case WagerTransactionKind.Rollback:
         if (reference === undefined) {
-          throw new InvalidTransactionStateError(this.id, this._status, 'derive a ROLLBACK direction without a reference');
+          throw new InvalidTransactionStateError(
+            this.id,
+            this._status,
+            'derive a ROLLBACK direction without a reference',
+          );
         }
         switch (reference.kind) {
           case WagerTransactionKind.Bet:
@@ -398,12 +452,20 @@ export class WagerTransaction {
 
 function assertNonEmpty(value: string, field: string): void {
   if (typeof value !== 'string' || value.trim().length === 0) {
-    throw new InvalidTransactionStateError(field, 'NEW', `create a transaction with an empty ${field}`);
+    throw new InvalidTransactionStateError(
+      field,
+      'NEW',
+      `create a transaction with an empty ${field}`,
+    );
   }
 }
 
 function assertValidDate(value: Date, field: string): void {
   if (!(value instanceof Date) || Number.isNaN(value.getTime())) {
-    throw new InvalidTransactionStateError(field, 'NEW', `create a transaction with an invalid ${field}`);
+    throw new InvalidTransactionStateError(
+      field,
+      'NEW',
+      `create a transaction with an invalid ${field}`,
+    );
   }
 }

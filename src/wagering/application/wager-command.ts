@@ -4,7 +4,8 @@ import { InvalidMoneyError } from '../../shared/domain/errors.js';
 import { Money } from '../../shared/domain/money.js';
 import { WagerTransactionKind } from '../domain/wager-transaction.js';
 
-const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+const UUID_PATTERN =
+  /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
 const moneySchema = z
   .object({
@@ -62,7 +63,10 @@ export interface ParsedQueueMessage {
   command: WagerTransactionCommand;
 }
 
-const KIND_MAP: Record<z.infer<typeof externalKindSchema>, WagerTransactionKind> = {
+const KIND_MAP: Record<
+  z.infer<typeof externalKindSchema>,
+  WagerTransactionKind
+> = {
   BET: WagerTransactionKind.Bet,
   WIN: WagerTransactionKind.Win,
   LOSS: WagerTransactionKind.Loss,
@@ -70,7 +74,10 @@ const KIND_MAP: Record<z.infer<typeof externalKindSchema>, WagerTransactionKind>
   ROLLBACK: WagerTransactionKind.Rollback,
 };
 
-export function parseHttpWagerCommand(body: unknown, idempotencyKey: string | undefined): WagerTransactionCommand {
+export function parseHttpWagerCommand(
+  body: unknown,
+  idempotencyKey: string | undefined,
+): WagerTransactionCommand {
   if (idempotencyKey === undefined || idempotencyKey.trim().length === 0) {
     throw new InvalidPayloadError('The Idempotency-Key header is required');
   }
@@ -78,7 +85,10 @@ export function parseHttpWagerCommand(body: unknown, idempotencyKey: string | un
   if (!parsed.success) {
     throw new InvalidPayloadError(
       'Request payload is invalid',
-      parsed.error.issues.map((issue) => ({ path: issue.path.join('.'), message: issue.message })),
+      parsed.error.issues.map((issue) => ({
+        path: issue.path.join('.'),
+        message: issue.message,
+      })),
     );
   }
   return toCommand(parsed.data, idempotencyKey);
@@ -89,11 +99,17 @@ export function parseQueueEnvelope(raw: unknown): ParsedQueueMessage {
   if (!parsed.success) {
     throw new InvalidPayloadError(
       'Queue message payload is invalid',
-      parsed.error.issues.map((issue) => ({ path: issue.path.join('.'), message: issue.message })),
+      parsed.error.issues.map((issue) => ({
+        path: issue.path.join('.'),
+        message: issue.message,
+      })),
     );
   }
   const { idempotencyKey, ...fields } = parsed.data.data;
-  return { messageId: parsed.data.messageId, command: toCommand(fields, idempotencyKey) };
+  return {
+    messageId: parsed.data.messageId,
+    command: toCommand(fields, idempotencyKey),
+  };
 }
 
 function toCommand(
@@ -105,7 +121,9 @@ function toCommand(
     money = Money.from(fields.money);
   } catch (error) {
     if (error instanceof InvalidMoneyError) {
-      throw new InvalidPayloadError(error.message, [{ path: 'money', message: error.message }]);
+      throw new InvalidPayloadError(error.message, [
+        { path: 'money', message: error.message },
+      ]);
     }
     throw error;
   }

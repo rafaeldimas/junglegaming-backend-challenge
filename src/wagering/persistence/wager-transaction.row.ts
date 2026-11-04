@@ -1,7 +1,10 @@
 import { defineEntity, p } from '@mikro-orm/postgresql';
 import type { EntityManager } from '@mikro-orm/postgresql';
 import { Money } from '../../shared/domain/money.js';
-import { WalletRow, WalletRowSchema } from '../../wallets/persistence/wallet.row.js';
+import {
+  WalletRow,
+  WalletRowSchema,
+} from '../../wallets/persistence/wallet.row.js';
 import { FailureCode } from '../domain/failure-code.js';
 import {
   TransactionOrigin,
@@ -48,7 +51,11 @@ export const WagerTransactionRowSchema = defineEntity({
     externalTransactionId: p.string().fieldName('external_transaction_id'),
     idempotencyKey: p.string().fieldName('idempotency_key'),
     payloadHash: p.string().length(64).fieldName('payload_hash'),
-    origin: p.enum([TransactionOrigin.Internal, TransactionOrigin.Api, TransactionOrigin.Sqs]),
+    origin: p.enum([
+      TransactionOrigin.Internal,
+      TransactionOrigin.Api,
+      TransactionOrigin.Sqs,
+    ]),
     correlationId: p.string().fieldName('correlation_id'),
     wallet: p.manyToOne(WalletRowSchema).fieldName('wallet_id'),
     playerId: p.uuid().fieldName('player_id'),
@@ -71,16 +78,48 @@ export const WagerTransactionRowSchema = defineEntity({
     ]),
     amount: p.decimal('string').columnType('numeric(20,2)'),
     currency: p.string().length(3),
-    referenceExternalTransactionId: p.string().nullable().fieldName('reference_external_transaction_id'),
-    referenceTransactionId: p.uuid().nullable().fieldName('reference_transaction_id'),
-    failureCode: p.enum(Object.values(FailureCode)).nullable().fieldName('failure_code'),
-    balanceAfter: p.decimal('string').columnType('numeric(20,2)').nullable().fieldName('balance_after'),
-    walletVersionAfter: p.integer().nullable().fieldName('wallet_version_after'),
-    pendingReferenceAttempts: p.integer().fieldName('pending_reference_attempts'),
-    nextReferenceRetryAt: p.datetime().columnType('timestamptz(3)').nullable().fieldName('next_reference_retry_at'),
-    createdAt: p.datetime().columnType('timestamptz(3)').fieldName('created_at'),
-    processedAt: p.datetime().columnType('timestamptz(3)').nullable().fieldName('processed_at'),
-    updatedAt: p.datetime().columnType('timestamptz(3)').fieldName('updated_at'),
+    referenceExternalTransactionId: p
+      .string()
+      .nullable()
+      .fieldName('reference_external_transaction_id'),
+    referenceTransactionId: p
+      .uuid()
+      .nullable()
+      .fieldName('reference_transaction_id'),
+    failureCode: p
+      .enum(Object.values(FailureCode))
+      .nullable()
+      .fieldName('failure_code'),
+    balanceAfter: p
+      .decimal('string')
+      .columnType('numeric(20,2)')
+      .nullable()
+      .fieldName('balance_after'),
+    walletVersionAfter: p
+      .integer()
+      .nullable()
+      .fieldName('wallet_version_after'),
+    pendingReferenceAttempts: p
+      .integer()
+      .fieldName('pending_reference_attempts'),
+    nextReferenceRetryAt: p
+      .datetime()
+      .columnType('timestamptz(3)')
+      .nullable()
+      .fieldName('next_reference_retry_at'),
+    createdAt: p
+      .datetime()
+      .columnType('timestamptz(3)')
+      .fieldName('created_at'),
+    processedAt: p
+      .datetime()
+      .columnType('timestamptz(3)')
+      .nullable()
+      .fieldName('processed_at'),
+    updatedAt: p
+      .datetime()
+      .columnType('timestamptz(3)')
+      .fieldName('updated_at'),
   },
   uniques: [
     { properties: ['providerId', 'externalTransactionId'] },
@@ -109,7 +148,8 @@ export function wagerTransactionToRow(
   target.status = transaction.status;
   target.amount = transaction.money.toJSON().amount;
   target.currency = transaction.money.currency;
-  target.referenceExternalTransactionId = transaction.referenceExternalTransactionId ?? null;
+  target.referenceExternalTransactionId =
+    transaction.referenceExternalTransactionId ?? null;
   target.referenceTransactionId = transaction.referenceTransactionId ?? null;
   target.failureCode = transaction.failureCode ?? null;
   target.balanceAfter = transaction.balanceAfter?.toJSON().amount ?? null;
@@ -122,7 +162,9 @@ export function wagerTransactionToRow(
   return target;
 }
 
-export function rowToWagerTransaction(row: WagerTransactionRow): WagerTransaction {
+export function rowToWagerTransaction(
+  row: WagerTransactionRow,
+): WagerTransaction {
   const currency = row.currency;
   return WagerTransaction.rehydrate({
     id: row.id,
@@ -136,7 +178,8 @@ export function rowToWagerTransaction(row: WagerTransactionRow): WagerTransactio
     gameId: row.gameId,
     kind: row.kind,
     money: Money.from({ amount: row.amount, currency }),
-    referenceExternalTransactionId: row.referenceExternalTransactionId ?? undefined,
+    referenceExternalTransactionId:
+      row.referenceExternalTransactionId ?? undefined,
     origin: row.origin,
     correlationId: row.correlationId,
     status: row.status,

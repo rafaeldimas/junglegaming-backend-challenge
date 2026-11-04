@@ -27,7 +27,9 @@ export class SqsClient {
 
   async getQueueUrl(name: string): Promise<string | null> {
     try {
-      const result = await this.client.send(new GetQueueUrlCommand({ QueueName: name }));
+      const result = await this.client.send(
+        new GetQueueUrlCommand({ QueueName: name }),
+      );
       return result.QueueUrl ?? null;
     } catch (error) {
       if (isQueueNotFound(error)) {
@@ -37,7 +39,10 @@ export class SqsClient {
     }
   }
 
-  async createFifoQueue(name: string, attributes: Record<string, string>): Promise<string> {
+  async createFifoQueue(
+    name: string,
+    attributes: Record<string, string>,
+  ): Promise<string> {
     const result = await this.client.send(
       new CreateQueueCommand({
         QueueName: name,
@@ -56,7 +61,10 @@ export class SqsClient {
 
   async getQueueArn(queueUrl: string): Promise<string> {
     const result = await this.client.send(
-      new GetQueueAttributesCommand({ QueueUrl: queueUrl, AttributeNames: ['QueueArn'] }),
+      new GetQueueAttributesCommand({
+        QueueUrl: queueUrl,
+        AttributeNames: ['QueueArn'],
+      }),
     );
     const arn = result.Attributes?.QueueArn;
     if (arn === undefined) {
@@ -81,7 +89,10 @@ export class SqsClient {
         MessageDeduplicationId: input.deduplicationId,
         MessageAttributes: {
           eventType: { DataType: 'String', StringValue: input.eventType },
-          correlationId: { DataType: 'String', StringValue: input.correlationId },
+          correlationId: {
+            DataType: 'String',
+            StringValue: input.correlationId,
+          },
         },
       }),
     );
@@ -109,13 +120,21 @@ export class SqsClient {
   }
 
   async deleteMessage(queueUrl: string, receiptHandle: string): Promise<void> {
-    await this.client.send(new DeleteMessageCommand({ QueueUrl: queueUrl, ReceiptHandle: receiptHandle }));
+    await this.client.send(
+      new DeleteMessageCommand({
+        QueueUrl: queueUrl,
+        ReceiptHandle: receiptHandle,
+      }),
+    );
   }
 
   async isReachable(queueUrl: string): Promise<boolean> {
     try {
       await this.client.send(
-        new GetQueueAttributesCommand({ QueueUrl: queueUrl, AttributeNames: ['QueueArn'] }),
+        new GetQueueAttributesCommand({
+          QueueUrl: queueUrl,
+          AttributeNames: ['QueueArn'],
+        }),
       );
       return true;
     } catch {
@@ -128,7 +147,11 @@ function isQueueNotFound(error: unknown): boolean {
   if (error === null || typeof error !== 'object') {
     return false;
   }
-  const candidate = error as { name?: string; Code?: string; $metadata?: { httpStatusCode?: number } };
+  const candidate = error as {
+    name?: string;
+    Code?: string;
+    $metadata?: { httpStatusCode?: number };
+  };
   return (
     candidate.name === 'QueueDoesNotExist' ||
     candidate.Code === 'AWS.SimpleQueueService.NonExistentQueue' ||

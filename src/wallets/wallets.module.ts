@@ -1,10 +1,16 @@
 import { Module } from '@nestjs/common';
 import { Clock, CLOCK } from '../shared/domain/clock.js';
 import { IdGenerator, ID_GENERATOR } from '../shared/domain/id-generator.js';
-import { UnitOfWork, UNIT_OF_WORK } from '../platform/database/transaction-context.js';
+import {
+  UnitOfWork,
+  UNIT_OF_WORK,
+} from '../platform/database/transaction-context.js';
 import { CreateWalletUseCase } from './application/create-wallet.use-case.js';
 import { ReconcileWalletUseCase } from './application/reconcile-wallet.use-case.js';
-import { GetWalletLedgerUseCase, GetWalletUseCase } from './application/wallet-queries.use-case.js';
+import {
+  GetWalletLedgerUseCase,
+  GetWalletUseCase,
+} from './application/wallet-queries.use-case.js';
 import { WalletController } from './http/wallet.controller.js';
 
 @Module({

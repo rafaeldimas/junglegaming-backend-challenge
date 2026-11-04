@@ -6,7 +6,10 @@ import {
 } from '../domain/wager-transaction.js';
 import { InsufficientFundsError } from '../../shared/domain/errors.js';
 import { Money } from '../../shared/domain/money.js';
-import { LedgerDirection, WalletLedgerEntry } from '../../wallets/domain/wallet-ledger-entry.js';
+import {
+  LedgerDirection,
+  WalletLedgerEntry,
+} from '../../wallets/domain/wallet-ledger-entry.js';
 import { Wallet } from '../../wallets/domain/wallet.js';
 import { TransactionContext } from '../../platform/database/transaction-context.js';
 import type { Clock } from '../../shared/domain/clock.js';
@@ -63,15 +66,38 @@ export class WagerTransactionApplier {
   ): Promise<ApplyOutcome> {
     const now = this.clock.now();
 
-    const wallet = await ctx.wallets.findById(transaction.walletId, { forUpdate: true });
+    const wallet = await ctx.wallets.findById(transaction.walletId, {
+      forUpdate: true,
+    });
     if (wallet === null) {
-      return this.reject(ctx, transaction, FailureCode.WalletNotFound, null, options, now);
+      return this.reject(
+        ctx,
+        transaction,
+        FailureCode.WalletNotFound,
+        null,
+        options,
+        now,
+      );
     }
     if (wallet.playerId !== transaction.playerId) {
-      return this.reject(ctx, transaction, FailureCode.PlayerWalletMismatch, wallet, options, now);
+      return this.reject(
+        ctx,
+        transaction,
+        FailureCode.PlayerWalletMismatch,
+        wallet,
+        options,
+        now,
+      );
     }
     if (wallet.currency !== transaction.money.currency) {
-      return this.reject(ctx, transaction, FailureCode.CurrencyMismatch, wallet, options, now);
+      return this.reject(
+        ctx,
+        transaction,
+        FailureCode.CurrencyMismatch,
+        wallet,
+        options,
+        now,
+      );
     }
 
     let resolvedReference: WagerTransaction | undefined;
@@ -84,22 +110,56 @@ export class WagerTransactionApplier {
         transaction.referenceExternalTransactionId!,
       );
 
-      if (reference === null || !reference.isTerminal() || reference.status === WagerTransactionStatus.PendingReference) {
-        return this.handleUnresolvedReference(ctx, transaction, wallet, options, now);
+      if (
+        reference === null ||
+        !reference.isTerminal() ||
+        reference.status === WagerTransactionStatus.PendingReference
+      ) {
+        return this.handleUnresolvedReference(
+          ctx,
+          transaction,
+          wallet,
+          options,
+          now,
+        );
       }
 
       if (reference.status !== WagerTransactionStatus.Processed) {
-        return this.reject(ctx, transaction, FailureCode.ReferenceNotSuccessful, wallet, options, now);
+        return this.reject(
+          ctx,
+          transaction,
+          FailureCode.ReferenceNotSuccessful,
+          wallet,
+          options,
+          now,
+        );
       }
 
       const referenceFailure = this.validateReference(transaction, reference);
       if (referenceFailure !== null) {
-        return this.reject(ctx, transaction, referenceFailure, wallet, options, now);
+        return this.reject(
+          ctx,
+          transaction,
+          referenceFailure,
+          wallet,
+          options,
+          now,
+        );
       }
 
-      const alreadyReversed = await ctx.wagerTransactions.findProcessedReversal(reference.id, transaction.kind);
+      const alreadyReversed = await ctx.wagerTransactions.findProcessedReversal(
+        reference.id,
+        transaction.kind,
+      );
       if (alreadyReversed !== null) {
-        return this.reject(ctx, transaction, FailureCode.AlreadyReversed, wallet, options, now);
+        return this.reject(
+          ctx,
+          transaction,
+          FailureCode.AlreadyReversed,
+          wallet,
+          options,
+          now,
+        );
       }
 
       resolvedReference = reference;
@@ -108,7 +168,14 @@ export class WagerTransactionApplier {
     const kind = transaction.kind;
     if (kind === WagerTransactionKind.Opening) {
       // OPENING is only created by CreateWalletUseCase, never here.
-      return this.reject(ctx, transaction, FailureCode.UnsupportedKind, wallet, options, now);
+      return this.reject(
+        ctx,
+        transaction,
+        FailureCode.UnsupportedKind,
+        wallet,
+        options,
+        now,
+      );
     }
 
     let entry: WalletLedgerEntry | undefined;
@@ -125,7 +192,12 @@ export class WagerTransactionApplier {
       throw error;
     }
 
-    transaction.markProcessed(resolvedReference?.id, now, wallet.balance, wallet.version);
+    transaction.markProcessed(
+      resolvedReference?.id,
+      now,
+      wallet.balance,
+      wallet.version,
+    );
 
     if (entry !== undefined) {
       await ctx.wallets.update(wallet);
@@ -135,7 +207,10 @@ export class WagerTransactionApplier {
 
     await this.emitProcessed(ctx, transaction, wallet, entry, options, now);
     metrics.recordTransaction(WagerTransactionStatus.Processed, kind);
-    return { status: WagerTransactionStatus.Processed, balance: wallet.balance };
+    return {
+      status: WagerTransactionStatus.Processed,
+      balance: wallet.balance,
+    };
   }
 
   /**
@@ -152,10 +227,22 @@ export class WagerTransactionApplier {
     transaction.reject(code, now);
     await ctx.wagerTransactions.update(transaction);
     await ctx.outbox.insertMany([
-      OutboxMessage.enqueue(WagerTransactionRejected.from(transaction, this.eventContext(options, now))),
+      OutboxMessage.enqueue(
+        WagerTransactionRejected.from(
+          transaction,
+          this.eventContext(options, now),
+        ),
+      ),
     ]);
-    metrics.recordTransaction(WagerTransactionStatus.Rejected, transaction.kind);
-    return { status: WagerTransactionStatus.Rejected, balance: null, failureCode: code };
+    metrics.recordTransaction(
+      WagerTransactionStatus.Rejected,
+      transaction.kind,
+    );
+    return {
+      status: WagerTransactionStatus.Rejected,
+      balance: null,
+      failureCode: code,
+    };
   }
 
   private moveMoney(
@@ -168,7 +255,11 @@ export class WagerTransactionApplier {
       return undefined;
     }
 
-    const movement = { entryId: this.ids.next(), transactionId: transaction.id, at: now };
+    const movement = {
+      entryId: this.ids.next(),
+      transactionId: transaction.id,
+      at: now,
+    };
 
     switch (transaction.kind) {
       case WagerTransactionKind.Bet:
@@ -189,20 +280,30 @@ export class WagerTransactionApplier {
     }
   }
 
-  private validateReference(transaction: WagerTransaction, reference: WagerTransaction): FailureCode | null {
+  private validateReference(
+    transaction: WagerTransaction,
+    reference: WagerTransaction,
+  ): FailureCode | null {
     if (
-      (transaction.kind === WagerTransactionKind.Refund || transaction.kind === WagerTransactionKind.Win) &&
+      (transaction.kind === WagerTransactionKind.Refund ||
+        transaction.kind === WagerTransactionKind.Win) &&
       reference.kind !== WagerTransactionKind.Bet
     ) {
       return FailureCode.InvalidReferenceKind;
     }
-    if (transaction.kind === WagerTransactionKind.Rollback && !reference.isRollbackable()) {
+    if (
+      transaction.kind === WagerTransactionKind.Rollback &&
+      !reference.isRollbackable()
+    ) {
       return FailureCode.InvalidReferenceKind;
     }
     if (reference.providerId !== transaction.providerId) {
       return FailureCode.ReferenceMismatch;
     }
-    if (reference.playerId !== transaction.playerId || reference.walletId !== transaction.walletId) {
+    if (
+      reference.playerId !== transaction.playerId ||
+      reference.walletId !== transaction.walletId
+    ) {
       return FailureCode.ReferenceMismatch;
     }
     if (reference.money.currency !== transaction.money.currency) {
@@ -228,8 +329,13 @@ export class WagerTransactionApplier {
     const age = now.getTime() - transaction.createdAt.getTime();
     const ttlExceeded = age > this.pendingPolicy.ttlMs;
 
-    if (options.referencePolicy === 'retry' && (attempt > this.pendingPolicy.maxAttempts || ttlExceeded)) {
-      const code = ttlExceeded ? FailureCode.ReferenceExpired : FailureCode.ReferenceNotFound;
+    if (
+      options.referencePolicy === 'retry' &&
+      (attempt > this.pendingPolicy.maxAttempts || ttlExceeded)
+    ) {
+      const code = ttlExceeded
+        ? FailureCode.ReferenceExpired
+        : FailureCode.ReferenceNotFound;
       return this.reject(ctx, transaction, code, wallet, options, now);
     }
 
@@ -240,12 +346,23 @@ export class WagerTransactionApplier {
     const eventContext = this.eventContext(options, now);
     await ctx.outbox.insertMany([
       OutboxMessage.enqueue(
-        WagerTransactionPendingReference.from(transaction, attempt, nextAttemptAt, eventContext),
+        WagerTransactionPendingReference.from(
+          transaction,
+          attempt,
+          nextAttemptAt,
+          eventContext,
+        ),
       ),
     ]);
-    metrics.recordTransaction(WagerTransactionStatus.PendingReference, transaction.kind);
+    metrics.recordTransaction(
+      WagerTransactionStatus.PendingReference,
+      transaction.kind,
+    );
 
-    return { status: WagerTransactionStatus.PendingReference, balance: wallet.balance };
+    return {
+      status: WagerTransactionStatus.PendingReference,
+      balance: wallet.balance,
+    };
   }
 
   private async reject(
@@ -261,10 +378,21 @@ export class WagerTransactionApplier {
     await ctx.wagerTransactions.update(transaction);
 
     const eventContext = this.eventContext(options, now);
-    await ctx.outbox.insertMany([OutboxMessage.enqueue(WagerTransactionRejected.from(transaction, eventContext))]);
-    metrics.recordTransaction(WagerTransactionStatus.Rejected, transaction.kind);
+    await ctx.outbox.insertMany([
+      OutboxMessage.enqueue(
+        WagerTransactionRejected.from(transaction, eventContext),
+      ),
+    ]);
+    metrics.recordTransaction(
+      WagerTransactionStatus.Rejected,
+      transaction.kind,
+    );
 
-    return { status: WagerTransactionStatus.Rejected, balance: balance ?? null, failureCode: code };
+    return {
+      status: WagerTransactionStatus.Rejected,
+      balance: balance ?? null,
+      failureCode: code,
+    };
   }
 
   private async emitProcessed(
@@ -276,11 +404,22 @@ export class WagerTransactionApplier {
     now: Date,
   ): Promise<void> {
     const messages = [
-      OutboxMessage.enqueue(WagerTransactionProcessed.from(transaction, this.eventContext(options, now))),
+      OutboxMessage.enqueue(
+        WagerTransactionProcessed.from(
+          transaction,
+          this.eventContext(options, now),
+        ),
+      ),
     ];
     if (entry !== undefined) {
       messages.push(
-        OutboxMessage.enqueue(WalletBalanceChanged.from(wallet, entry, this.eventContext(options, now))),
+        OutboxMessage.enqueue(
+          WalletBalanceChanged.from(
+            wallet,
+            entry,
+            this.eventContext(options, now),
+          ),
+        ),
       );
     }
     await ctx.outbox.insertMany(messages);
@@ -297,6 +436,9 @@ export class WagerTransactionApplier {
 }
 
 function backoffFor(attempt: number): number {
-  const index = Math.min(Math.max(attempt - 1, 0), REFERENCE_BACKOFF_MS.length - 1);
+  const index = Math.min(
+    Math.max(attempt - 1, 0),
+    REFERENCE_BACKOFF_MS.length - 1,
+  );
   return REFERENCE_BACKOFF_MS[index]!;
 }

@@ -1,8 +1,14 @@
 import { defineEntity, p } from '@mikro-orm/postgresql';
 import type { EntityManager } from '@mikro-orm/postgresql';
 import { Money } from '../../shared/domain/money.js';
-import { LedgerDirection, WalletLedgerEntry } from '../domain/wallet-ledger-entry.js';
-import { WagerTransactionRow, WagerTransactionRowSchema } from '../../wagering/persistence/wager-transaction.row.js';
+import {
+  LedgerDirection,
+  WalletLedgerEntry,
+} from '../domain/wallet-ledger-entry.js';
+import {
+  WagerTransactionRow,
+  WagerTransactionRowSchema,
+} from '../../wagering/persistence/wager-transaction.row.js';
 import { WalletRow, WalletRowSchema } from './wallet.row.js';
 
 /**
@@ -30,17 +36,31 @@ export const LedgerEntryRowSchema = defineEntity({
   properties: {
     id: p.uuid().primary(),
     wallet: p.manyToOne(WalletRowSchema).fieldName('wallet_id'),
-    transaction: p.manyToOne(WagerTransactionRowSchema).fieldName('transaction_id'),
+    transaction: p
+      .manyToOne(WagerTransactionRowSchema)
+      .fieldName('transaction_id'),
     direction: p.enum([LedgerDirection.Debit, LedgerDirection.Credit]),
     amount: p.decimal('string').columnType('numeric(20,2)'),
     currency: p.string().length(3),
-    balanceBefore: p.decimal('string').columnType('numeric(20,2)').fieldName('balance_before'),
-    balanceAfter: p.decimal('string').columnType('numeric(20,2)').fieldName('balance_after'),
-    createdAt: p.datetime().columnType('timestamptz(3)').fieldName('created_at'),
+    balanceBefore: p
+      .decimal('string')
+      .columnType('numeric(20,2)')
+      .fieldName('balance_before'),
+    balanceAfter: p
+      .decimal('string')
+      .columnType('numeric(20,2)')
+      .fieldName('balance_after'),
+    createdAt: p
+      .datetime()
+      .columnType('timestamptz(3)')
+      .fieldName('created_at'),
   },
 });
 
-export function ledgerEntryToRow(entry: WalletLedgerEntry, em: EntityManager): LedgerEntryRow {
+export function ledgerEntryToRow(
+  entry: WalletLedgerEntry,
+  em: EntityManager,
+): LedgerEntryRow {
   const row = new LedgerEntryRow();
   row.id = entry.id;
   row.wallet = em.getReference(WalletRow, entry.walletId);

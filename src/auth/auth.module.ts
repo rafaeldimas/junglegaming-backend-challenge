@@ -1,5 +1,9 @@
 import { Global, Module } from '@nestjs/common';
-import { AuthGuard, NoopProviderIdentityAdapter, PROVIDER_IDENTITY_PORT } from './auth.guard.js';
+import {
+  AuthGuard,
+  NoopProviderIdentityAdapter,
+  PROVIDER_IDENTITY_PORT,
+} from './auth.guard.js';
 
 @Global()
 @Module({

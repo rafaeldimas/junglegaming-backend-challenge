@@ -1,4 +1,10 @@
-import { ArgumentsHost, Catch, ExceptionFilter, HttpException, HttpStatus } from '@nestjs/common';
+import {
+  ArgumentsHost,
+  Catch,
+  ExceptionFilter,
+  HttpException,
+  HttpStatus,
+} from '@nestjs/common';
 import { Response } from 'express';
 import { DomainError } from '../../shared/domain/errors.js';
 import { ApplicationError } from '../errors/application-error.js';
@@ -32,7 +38,16 @@ export class AllExceptionsFilter implements ExceptionFilter {
     const correlationId = getLogContext().correlationId;
 
     if (exception instanceof ApplicationError) {
-      response.status(exception.httpStatus).json(this.body(exception.code, exception.message, correlationId, exception.details));
+      response
+        .status(exception.httpStatus)
+        .json(
+          this.body(
+            exception.code,
+            exception.message,
+            correlationId,
+            exception.details,
+          ),
+        );
       return;
     }
 
@@ -47,17 +62,26 @@ export class AllExceptionsFilter implements ExceptionFilter {
       const status = exception.getStatus();
       const payload = exception.getResponse();
       const message = typeof payload === 'string' ? payload : exception.message;
-      response.status(status).json(this.body(`HTTP_${status}`, message, correlationId));
+      response
+        .status(status)
+        .json(this.body(`HTTP_${status}`, message, correlationId));
       return;
     }
 
     logger.error({ err: exception }, 'unhandled exception');
     response
       .status(HttpStatus.INTERNAL_SERVER_ERROR)
-      .json(this.body('INTERNAL_ERROR', 'Unexpected internal error', correlationId));
+      .json(
+        this.body('INTERNAL_ERROR', 'Unexpected internal error', correlationId),
+      );
   }
 
-  private body(code: string, message: string, correlationId?: string, details?: unknown): ErrorBody {
+  private body(
+    code: string,
+    message: string,
+    correlationId?: string,
+    details?: unknown,
+  ): ErrorBody {
     const body: ErrorBody = { error: { code, message } };
     if (correlationId !== undefined) {
       body.error.correlationId = correlationId;

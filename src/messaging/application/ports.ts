@@ -8,7 +8,11 @@ export interface InboxRepository {
    */
   tryInsert(message: InboxMessage): Promise<boolean>;
   find(consumerName: string, messageId: string): Promise<InboxMessage | null>;
-  markProcessed(consumerName: string, messageId: string, at: Date): Promise<void>;
+  markProcessed(
+    consumerName: string,
+    messageId: string,
+    at: Date,
+  ): Promise<void>;
 }
 
 export interface OutboxRepository {
@@ -16,5 +20,8 @@ export interface OutboxRepository {
   /** Locks due rows with `FOR UPDATE SKIP LOCKED` inside the current transaction. */
   claimDue(limit: number, now: Date): Promise<OutboxMessage[]>;
   save(messages: OutboxMessage[]): Promise<void>;
-  pendingStats(): Promise<{ pendingCount: number; oldestOccurredAt: Date | null }>;
+  pendingStats(): Promise<{
+    pendingCount: number;
+    oldestOccurredAt: Date | null;
+  }>;
 }

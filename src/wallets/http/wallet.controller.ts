@@ -1,8 +1,19 @@
-import { Body, Controller, Get, HttpCode, Param, Post, Query } from '@nestjs/common';
+import {
+  Body,
+  Controller,
+  Get,
+  HttpCode,
+  Param,
+  Post,
+  Query,
+} from '@nestjs/common';
 import { z } from 'zod';
 import { Money } from '../../shared/domain/money.js';
 import { CreateWalletUseCase } from '../application/create-wallet.use-case.js';
-import { GetWalletLedgerUseCase, GetWalletUseCase } from '../application/wallet-queries.use-case.js';
+import {
+  GetWalletLedgerUseCase,
+  GetWalletUseCase,
+} from '../application/wallet-queries.use-case.js';
 import { ReconcileWalletUseCase } from '../application/reconcile-wallet.use-case.js';
 import { ZodValidationPipe } from '../../platform/http/zod-validation.pipe.js';
 import { getLogContext } from '../../platform/logging/log-context.js';
@@ -40,7 +51,9 @@ export class WalletController {
   ) {}
 
   @Post()
-  async create(@Body(new ZodValidationPipe(createWalletSchema)) body: CreateWalletBody) {
+  async create(
+    @Body(new ZodValidationPipe(createWalletSchema)) body: CreateWalletBody,
+  ) {
     const wallet = await this.createWallet.execute(
       {
         playerId: body.playerId,
@@ -60,7 +73,9 @@ export class WalletController {
   }
 
   @Get(':walletId')
-  async findOne(@Param('walletId', new ZodValidationPipe(uuidSchema)) walletId: string) {
+  async findOne(
+    @Param('walletId', new ZodValidationPipe(uuidSchema)) walletId: string,
+  ) {
     const wallet = await this.getWallet.execute(walletId);
     return {
       id: wallet.id,
@@ -77,7 +92,8 @@ export class WalletController {
     @Param('walletId', new ZodValidationPipe(uuidSchema)) walletId: string,
     @Query(new ZodValidationPipe(ledgerQuerySchema)) query: LedgerQuery,
   ) {
-    const cursor = query.cursor === undefined ? null : decodeLedgerCursor(query.cursor);
+    const cursor =
+      query.cursor === undefined ? null : decodeLedgerCursor(query.cursor);
     const page = await this.getLedger.execute(walletId, cursor, query.limit);
     return {
       walletId,
@@ -96,7 +112,9 @@ export class WalletController {
 
   @Post(':walletId/reconciliation')
   @HttpCode(200)
-  async reconcileWallet(@Param('walletId', new ZodValidationPipe(uuidSchema)) walletId: string) {
+  async reconcileWallet(
+    @Param('walletId', new ZodValidationPipe(uuidSchema)) walletId: string,
+  ) {
     const result = await this.reconcile.execute(walletId);
     return {
       walletId: result.walletId,

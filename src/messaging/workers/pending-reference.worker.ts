@@ -1,4 +1,9 @@
-import { Inject, Injectable, OnApplicationBootstrap, OnApplicationShutdown } from '@nestjs/common';
+import {
+  Inject,
+  Injectable,
+  OnApplicationBootstrap,
+  OnApplicationShutdown,
+} from '@nestjs/common';
 import type { AppEnv } from '../../config/env.js';
 import type { UnitOfWork } from '../../platform/database/transaction-context.js';
 import type { Clock } from '../../shared/domain/clock.js';
@@ -18,7 +23,9 @@ import { PeriodicWorker } from './periodic-worker.js';
  * `FOR UPDATE`; concurrent workers skip rows already taken.
  */
 @Injectable()
-export class PendingReferenceWorker implements OnApplicationBootstrap, OnApplicationShutdown {
+export class PendingReferenceWorker
+  implements OnApplicationBootstrap, OnApplicationShutdown
+{
   private readonly worker: PeriodicWorker;
 
   constructor(
@@ -27,8 +34,10 @@ export class PendingReferenceWorker implements OnApplicationBootstrap, OnApplica
     @Inject(CLOCK) private readonly clock: Clock,
     private readonly env: AppEnv,
   ) {
-    this.worker = new PeriodicWorker('pending-reference', env.PENDING_REFERENCE_POLL_INTERVAL_MS, () =>
-      this.tick(),
+    this.worker = new PeriodicWorker(
+      'pending-reference',
+      env.PENDING_REFERENCE_POLL_INTERVAL_MS,
+      () => this.tick(),
     );
   }
 
@@ -57,18 +66,27 @@ export class PendingReferenceWorker implements OnApplicationBootstrap, OnApplica
       try {
         await this.processOne(transactionId);
       } catch (error) {
-        logger.error({ err: error, transactionId }, 'pending reference retry failed');
+        logger.error(
+          { err: error, transactionId },
+          'pending reference retry failed',
+        );
       }
     }
 
-    const count = await this.uow.execute((ctx) => ctx.wagerTransactions.countPendingReferences());
+    const count = await this.uow.execute((ctx) =>
+      ctx.wagerTransactions.countPendingReferences(),
+    );
     metrics.pendingReferenceTransactions.set(count);
   }
 
   private async processOne(transactionId: string): Promise<void> {
     await this.uow.execute(async (ctx) => {
-      const transaction = await ctx.wagerTransactions.findByIdForUpdate(transactionId);
-      if (transaction === null || transaction.status !== WagerTransactionStatus.PendingReference) {
+      const transaction =
+        await ctx.wagerTransactions.findByIdForUpdate(transactionId);
+      if (
+        transaction === null ||
+        transaction.status !== WagerTransactionStatus.PendingReference
+      ) {
         return;
       }
 

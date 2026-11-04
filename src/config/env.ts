@@ -4,20 +4,31 @@ const booleanFromString = (defaultValue: boolean) =>
   z
     .union([z.boolean(), z.string()])
     .default(defaultValue)
-    .transform((value) => (typeof value === 'boolean' ? value : value.toLowerCase() === 'true'));
+    .transform((value) =>
+      typeof value === 'boolean' ? value : value.toLowerCase() === 'true',
+    );
 
 const intFromString = (defaultValue: number, min = 0) =>
   z
     .union([z.number(), z.string()])
     .default(defaultValue)
-    .transform((value) => (typeof value === 'number' ? value : Number.parseInt(value, 10)))
+    .transform((value) =>
+      typeof value === 'number' ? value : Number.parseInt(value, 10),
+    )
     .pipe(z.number().int().min(min));
 
 const envSchema = z.object({
-  NODE_ENV: z.enum(['development', 'test', 'production']).default('development'),
+  NODE_ENV: z
+    .enum(['development', 'test', 'production'])
+    .default('development'),
   PORT: intFromString(3000, 1),
-  DATABASE_URL: z.string().min(1).default('postgresql://jungle:jungle@localhost:5432/jungle'),
-  LOG_LEVEL: z.enum(['fatal', 'error', 'warn', 'info', 'debug', 'trace', 'silent']).default('info'),
+  DATABASE_URL: z
+    .string()
+    .min(1)
+    .default('postgresql://jungle:jungle@localhost:5432/jungle'),
+  LOG_LEVEL: z
+    .enum(['fatal', 'error', 'warn', 'info', 'debug', 'trace', 'silent'])
+    .default('info'),
 
   SQS_ENDPOINT: z.string().min(1).default('http://localhost:4566'),
   AWS_REGION: z.string().min(1).default('us-east-1'),
@@ -59,7 +70,9 @@ export function loadEnv(source: NodeJS.ProcessEnv = process.env): AppEnv {
   }
   const parsed = envSchema.safeParse(source);
   if (!parsed.success) {
-    const details = parsed.error.issues.map((issue) => `${issue.path.join('.')}: ${issue.message}`).join('; ');
+    const details = parsed.error.issues
+      .map((issue) => `${issue.path.join('.')}: ${issue.message}`)
+      .join('; ');
     throw new Error(`Invalid environment configuration: ${details}`);
   }
   if (source === process.env) {

@@ -23,8 +23,14 @@ export const WalletRowSchema = defineEntity({
     currency: p.string().length(3),
     balance: p.decimal('string').columnType('numeric(20,2)'),
     version: p.integer(),
-    createdAt: p.datetime().columnType('timestamptz(3)').fieldName('created_at'),
-    updatedAt: p.datetime().columnType('timestamptz(3)').fieldName('updated_at'),
+    createdAt: p
+      .datetime()
+      .columnType('timestamptz(3)')
+      .fieldName('created_at'),
+    updatedAt: p
+      .datetime()
+      .columnType('timestamptz(3)')
+      .fieldName('updated_at'),
   },
   uniques: [{ properties: ['playerId', 'currency'] }],
 });

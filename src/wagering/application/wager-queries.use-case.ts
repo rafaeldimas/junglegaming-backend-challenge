@@ -15,14 +15,19 @@ export class GetWagerTransactionUseCase {
     });
   }
 
-  async byProviderExternalId(providerId: string, externalTransactionId: string): Promise<WagerTransaction> {
+  async byProviderExternalId(
+    providerId: string,
+    externalTransactionId: string,
+  ): Promise<WagerTransaction> {
     return this.uow.execute(async (ctx) => {
       const transaction = await ctx.wagerTransactions.findByProviderExternalId(
         providerId,
         externalTransactionId,
       );
       if (transaction === null) {
-        throw new TransactionNotFoundError(`${providerId}:${externalTransactionId}`);
+        throw new TransactionNotFoundError(
+          `${providerId}:${externalTransactionId}`,
+        );
       }
       return transaction;
     });

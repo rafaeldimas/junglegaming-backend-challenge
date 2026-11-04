@@ -1,4 +1,11 @@
-import { SQSClient, GetQueueUrlCommand, ReceiveMessageCommand, DeleteMessageCommand, GetQueueAttributesCommand, SendMessageCommand } from '@aws-sdk/client-sqs';
+import {
+  SQSClient,
+  GetQueueUrlCommand,
+  ReceiveMessageCommand,
+  DeleteMessageCommand,
+  GetQueueAttributesCommand,
+  SendMessageCommand,
+} from '@aws-sdk/client-sqs';
 import { WalletAlreadyExistsError } from '../src/platform/errors/application-error.js';
 import { FailureCode } from '../src/wagering/domain/failure-code.js';
 import {
@@ -45,7 +52,9 @@ async function drainQueue(queueName: string): Promise<string[]> {
     region: h.env.AWS_REGION,
     credentials: { accessKeyId: 'test', secretAccessKey: 'test' },
   });
-  const { QueueUrl } = await client.send(new GetQueueUrlCommand({ QueueName: queueName }));
+  const { QueueUrl } = await client.send(
+    new GetQueueUrlCommand({ QueueName: queueName }),
+  );
   const bodies: string[] = [];
   for (;;) {
     const received = await client.send(
@@ -63,7 +72,10 @@ async function drainQueue(queueName: string): Promise<string[]> {
     for (const message of messages) {
       bodies.push(message.Body ?? '');
       await client.send(
-        new DeleteMessageCommand({ QueueUrl, ReceiptHandle: message.ReceiptHandle! }),
+        new DeleteMessageCommand({
+          QueueUrl,
+          ReceiptHandle: message.ReceiptHandle!,
+        }),
       );
     }
   }
@@ -77,21 +89,32 @@ async function queueDepth(queueName: string): Promise<number> {
     region: h.env.AWS_REGION,
     credentials: { accessKeyId: 'test', secretAccessKey: 'test' },
   });
-  const { QueueUrl } = await client.send(new GetQueueUrlCommand({ QueueName: queueName }));
+  const { QueueUrl } = await client.send(
+    new GetQueueUrlCommand({ QueueName: queueName }),
+  );
   const attributes = await client.send(
-    new GetQueueAttributesCommand({ QueueUrl, AttributeNames: ['ApproximateNumberOfMessages'] }),
+    new GetQueueAttributesCommand({
+      QueueUrl,
+      AttributeNames: ['ApproximateNumberOfMessages'],
+    }),
   );
   client.destroy();
   return Number(attributes.Attributes?.ApproximateNumberOfMessages ?? '0');
 }
 
-async function sendRaw(queueName: string, body: string, groupId = 'raw'): Promise<void> {
+async function sendRaw(
+  queueName: string,
+  body: string,
+  groupId = 'raw',
+): Promise<void> {
   const client = new SQSClient({
     endpoint: h.env.SQS_ENDPOINT,
     region: h.env.AWS_REGION,
     credentials: { accessKeyId: 'test', secretAccessKey: 'test' },
   });
-  const { QueueUrl } = await client.send(new GetQueueUrlCommand({ QueueName: queueName }));
+  const { QueueUrl } = await client.send(
+    new GetQueueUrlCommand({ QueueName: queueName }),
+  );
   await client.send(
     new SendMessageCommand({
       QueueUrl,
@@ -117,19 +140,34 @@ describe('schema guarantees', () => {
       h.sql('update wallets set balance = -1 where id = ?', [wallet.id]),
     ).rejects.toThrow();
     await expect(
-      h.sql('update wallet_ledger_entries set amount = 1 where wallet_id = ?', [wallet.id]),
+      h.sql('update wallet_ledger_entries set amount = 1 where wallet_id = ?', [
+        wallet.id,
+      ]),
     ).rejects.toThrow();
     await expect(
-      h.sql('delete from wallet_ledger_entries where wallet_id = ?', [wallet.id]),
+      h.sql('delete from wallet_ledger_entries where wallet_id = ?', [
+        wallet.id,
+      ]),
     ).rejects.toThrow();
 
     // One wallet per player + currency.
     await expect(
-      h.createWallet.execute({ playerId: wallet.playerId, initialBalance: brl('1.00') }, 'test'),
+      h.createWallet.execute(
+        { playerId: wallet.playerId, initialBalance: brl('1.00') },
+        'test',
+      ),
     ).rejects.toBeInstanceOf(WalletAlreadyExistsError);
 
     // Ledger: at most one entry per transaction.
-    const [entry] = await h.sql<{ transaction_id: string; wallet_id: string; direction: string; amount: string; currency: string; balance_before: string; balance_after: string }>(
+    const [entry] = await h.sql<{
+      transaction_id: string;
+      wallet_id: string;
+      direction: string;
+      amount: string;
+      currency: string;
+      balance_before: string;
+      balance_after: string;
+    }>(
       'select transaction_id, wallet_id, direction, amount, currency, balance_before, balance_after from wallet_ledger_entries where wallet_id = ?',
       [wallet.id],
     );
@@ -173,7 +211,10 @@ describe('schema guarantees', () => {
       }),
     );
 
-    const [first] = await h.sql<{ id: string; reference_transaction_id: string }>(
+    const [first] = await h.sql<{
+      id: string;
+      reference_transaction_id: string;
+    }>(
       `select id, reference_transaction_id from wager_transactions
         where kind = 'ROLLBACK' and status = 'PROCESSED'`,
     );
@@ -186,7 +227,12 @@ describe('schema guarantees', () => {
             pending_reference_attempts, created_at, updated_at)
          values (?, 'provider-a', 'dup', 'dup', repeat('b', 64), 'API', 'c', ?, ?, 'r', 'g', 'ROLLBACK',
                  'PROCESSED', '10.00', 'BRL', ?, 0, now(), now())`,
-        [crypto.randomUUID(), wallet.id, wallet.playerId, first!.reference_transaction_id],
+        [
+          crypto.randomUUID(),
+          wallet.id,
+          wallet.playerId,
+          first!.reference_transaction_id,
+        ],
       ),
     ).rejects.toThrow();
   });
@@ -196,13 +242,26 @@ describe('wallet creation atomicity', () => {
   it('commits wallet + OPENING + ledger + outbox together or not at all', async () => {
     const playerId = crypto.randomUUID();
     const [a, b] = await Promise.allSettled([
-      h.createWallet.execute({ playerId, initialBalance: brl('100.00') }, 'test'),
-      h.newInstance().createWallet.execute({ playerId, initialBalance: brl('100.00') }, 'test'),
+      h.createWallet.execute(
+        { playerId, initialBalance: brl('100.00') },
+        'test',
+      ),
+      h
+        .newInstance()
+        .createWallet.execute(
+          { playerId, initialBalance: brl('100.00') },
+          'test',
+        ),
     ]);
 
     expect([a.status, b.status].sort()).toEqual(['fulfilled', 'rejected']);
 
-    const [counts] = await h.sql<{ wallets: number; openings: number; entries: number; outbox: number }>(
+    const [counts] = await h.sql<{
+      wallets: number;
+      openings: number;
+      entries: number;
+      outbox: number;
+    }>(
       `select (select count(*)::int from wallets) as wallets,
               (select count(*)::int from wager_transactions where kind = 'OPENING') as openings,
               (select count(*)::int from wallet_ledger_entries) as entries,
@@ -215,7 +274,11 @@ describe('wallet creation atomicity', () => {
   it('opens a zero-balance wallet without an OPENING transaction', async () => {
     const wallet = await createWallet(h, '0.00');
 
-    const [counts] = await h.sql<{ openings: number; entries: number; outbox: number }>(
+    const [counts] = await h.sql<{
+      openings: number;
+      entries: number;
+      outbox: number;
+    }>(
       `select (select count(*)::int from wager_transactions) as openings,
               (select count(*)::int from wallet_ledger_entries) as entries,
               (select count(*)::int from outbox_messages) as outbox`,
@@ -265,7 +328,9 @@ describe('idempotency', () => {
     const command = commandFor(wallet, { money: brl('25.00') });
     await submit(h, command);
 
-    await expect(submit(h, { ...command, money: brl('30.00') })).rejects.toMatchObject({
+    await expect(
+      submit(h, { ...command, money: brl('30.00') }),
+    ).rejects.toMatchObject({
       code: 'IDEMPOTENCY_CONFLICT',
     });
     expect((await walletRow(h, wallet.id))!.balance).toBe('75.00');
@@ -292,8 +357,14 @@ describe('inbox deduplication', () => {
       receivedAt: h.clock.now(),
     };
 
-    const first = await submit(h, command, { origin: TransactionOrigin.Sqs, inbox });
-    const second = await submit(h, command, { origin: TransactionOrigin.Sqs, inbox });
+    const first = await submit(h, command, {
+      origin: TransactionOrigin.Sqs,
+      inbox,
+    });
+    const second = await submit(h, command, {
+      origin: TransactionOrigin.Sqs,
+      inbox,
+    });
 
     expect(first.duplicateMessage).toBeUndefined();
     expect(second.duplicateMessage).toBe(true);
@@ -313,11 +384,19 @@ describe('inbox deduplication', () => {
 
     const first = await submit(h, command, {
       origin: TransactionOrigin.Sqs,
-      inbox: { consumerName: 'sqs:wager-transactions', messageId: 'msg-1', receivedAt: h.clock.now() },
+      inbox: {
+        consumerName: 'sqs:wager-transactions',
+        messageId: 'msg-1',
+        receivedAt: h.clock.now(),
+      },
     });
     const second = await submit(h, command, {
       origin: TransactionOrigin.Sqs,
-      inbox: { consumerName: 'sqs:wager-transactions', messageId: 'msg-2', receivedAt: h.clock.now() },
+      inbox: {
+        consumerName: 'sqs:wager-transactions',
+        messageId: 'msg-2',
+        receivedAt: h.clock.now(),
+      },
     });
 
     expect(second.idempotentReplay).toBe(true);
@@ -331,12 +410,18 @@ describe('concurrency', () => {
     const wallet = await createWallet(h, '100.00');
     const command = commandFor(wallet, { money: brl('25.00') });
 
-    const results = await Promise.all(Array.from({ length: 50 }, () => submit(h, command)));
+    const results = await Promise.all(
+      Array.from({ length: 50 }, () => submit(h, command)),
+    );
 
-    const processed = results.filter((result) => result.status === WagerTransactionStatus.Processed);
+    const processed = results.filter(
+      (result) => result.status === WagerTransactionStatus.Processed,
+    );
     expect(processed).toHaveLength(50);
     expect(new Set(results.map((result) => result.transactionId)).size).toBe(1);
-    expect(results.filter((result) => result.idempotentReplay === true).length).toBeGreaterThan(0);
+    expect(
+      results.filter((result) => result.idempotentReplay === true).length,
+    ).toBeGreaterThan(0);
 
     expect((await walletRow(h, wallet.id))!.balance).toBe('75.00');
     const [counts] = await h.sql<{ debits: number; processed: number }>(
@@ -354,13 +439,17 @@ describe('concurrency', () => {
       submit(h, commandFor(wallet, { money: brl('80.00') })),
     ]);
 
-    expect(results.map((result) => result.status).sort((a, b) => a.localeCompare(b))).toEqual([
+    expect(
+      results.map((result) => result.status).sort((a, b) => a.localeCompare(b)),
+    ).toEqual([
       WagerTransactionStatus.Processed,
       WagerTransactionStatus.Rejected,
     ]);
-    expect(results.find((result) => result.status === WagerTransactionStatus.Rejected)?.failureCode).toBe(
-      FailureCode.InsufficientFunds,
-    );
+    expect(
+      results.find(
+        (result) => result.status === WagerTransactionStatus.Rejected,
+      )?.failureCode,
+    ).toBe(FailureCode.InsufficientFunds);
     expect((await walletRow(h, wallet.id))!.balance).toBe('20.00');
 
     const [counts] = await h.sql<{ debits: number }>(
@@ -371,9 +460,15 @@ describe('concurrency', () => {
   });
 
   it('processes distinct wallets in parallel without contention', async () => {
-    const wallets = await Promise.all(Array.from({ length: 10 }, () => createWallet(h, '50.00')));
+    const wallets = await Promise.all(
+      Array.from({ length: 10 }, () => createWallet(h, '50.00')),
+    );
 
-    await Promise.all(wallets.map((wallet) => submit(h, commandFor(wallet, { money: brl('10.00') }))));
+    await Promise.all(
+      wallets.map((wallet) =>
+        submit(h, commandFor(wallet, { money: brl('10.00') })),
+      ),
+    );
 
     for (const wallet of wallets) {
       expect((await walletRow(h, wallet.id))!.balance).toBe('40.00');
@@ -395,7 +490,11 @@ describe('concurrency', () => {
       ),
     );
 
-    expect(results.filter((result) => result.status === WagerTransactionStatus.Processed)).toHaveLength(3);
+    expect(
+      results.filter(
+        (result) => result.status === WagerTransactionStatus.Processed,
+      ),
+    ).toHaveLength(3);
     expect((await walletRow(h, wallet.id))!.balance).toBe('20.00');
     const [counts] = await h.sql<{ debits: number }>(
       `select count(*)::int as debits from wallet_ledger_entries where direction = 'DEBIT'`,
@@ -417,12 +516,21 @@ describe('references', () => {
     const pending = await submit(h, refund);
     expect(pending.status).toBe(WagerTransactionStatus.PendingReference);
 
-    await submit(h, commandFor(wallet, { externalTransactionId: 'external-bet-1', money: brl('25.00') }));
+    await submit(
+      h,
+      commandFor(wallet, {
+        externalTransactionId: 'external-bet-1',
+        money: brl('25.00'),
+      }),
+    );
     h.clock.advance(6_000);
 
     await h.pendingReferenceWorker().tick();
 
-    const [transaction] = await h.sql<{ status: string; reference_transaction_id: string | null }>(
+    const [transaction] = await h.sql<{
+      status: string;
+      reference_transaction_id: string | null;
+    }>(
       'select status, reference_transaction_id from wager_transactions where external_transaction_id = ?',
       [refund.externalTransactionId],
     );
@@ -439,17 +547,24 @@ describe('references', () => {
       money: brl('25.00'),
       referenceExternalTransactionId: 'external-never',
     });
-    expect((await submit(h, refund)).status).toBe(WagerTransactionStatus.PendingReference);
+    expect((await submit(h, refund)).status).toBe(
+      WagerTransactionStatus.PendingReference,
+    );
 
     h.clock.advance(6_000);
     await h.pendingReferenceWorker().tick();
     h.clock.advance(200_000);
     await h.pendingReferenceWorker().tick();
 
-    const row = await transactionRow(h, (await h.sql<{ id: string }>(
-      'select id from wager_transactions where external_transaction_id = ?',
-      [refund.externalTransactionId],
-    ))[0]!.id);
+    const row = await transactionRow(
+      h,
+      (
+        await h.sql<{ id: string }>(
+          'select id from wager_transactions where external_transaction_id = ?',
+          [refund.externalTransactionId],
+        )
+      )[0]!.id,
+    );
 
     expect(row!.status).toBe(WagerTransactionStatus.Rejected);
     expect(row!.failureCode).toBe(FailureCode.ReferenceExpired);
@@ -469,13 +584,24 @@ describe('references', () => {
       referenceExternalTransactionId: 'external-bet-win',
     });
 
-    expect((await submit(h, win)).status).toBe(WagerTransactionStatus.PendingReference);
+    expect((await submit(h, win)).status).toBe(
+      WagerTransactionStatus.PendingReference,
+    );
 
-    await submit(h, commandFor(wallet, { externalTransactionId: 'external-bet-win', money: brl('25.00') }));
+    await submit(
+      h,
+      commandFor(wallet, {
+        externalTransactionId: 'external-bet-win',
+        money: brl('25.00'),
+      }),
+    );
     h.clock.advance(6_000);
     await h.pendingReferenceWorker().tick();
 
-    const [transaction] = await h.sql<{ status: string; reference_transaction_id: string | null }>(
+    const [transaction] = await h.sql<{
+      status: string;
+      reference_transaction_id: string | null;
+    }>(
       'select status, reference_transaction_id from wager_transactions where external_transaction_id = ?',
       [win.externalTransactionId],
     );
@@ -511,7 +637,13 @@ describe('references', () => {
 
   it('rejects a REFUND whose amount differs from the reference', async () => {
     const wallet = await createWallet(h, '100.00');
-    await submit(h, commandFor(wallet, { externalTransactionId: 'external-bet-2', money: brl('25.00') }));
+    await submit(
+      h,
+      commandFor(wallet, {
+        externalTransactionId: 'external-bet-2',
+        money: brl('25.00'),
+      }),
+    );
 
     const result = await submit(
       h,
@@ -537,7 +669,9 @@ describe('references', () => {
       money: brl('25.00'),
       referenceExternalTransactionId: bet.externalTransactionId,
     });
-    expect((await submit(h, rollback)).status).toBe(WagerTransactionStatus.Processed);
+    expect((await submit(h, rollback)).status).toBe(
+      WagerTransactionStatus.Processed,
+    );
 
     const second = await submit(h, {
       ...rollback,
@@ -553,7 +687,10 @@ describe('references', () => {
 describe('business rejections', () => {
   it('distinguishes a reversal that would go negative from a normal bet rejection', async () => {
     const wallet = await createWallet(h, '100.00');
-    const win = commandFor(wallet, { kind: WagerTransactionKind.Win, money: brl('100.00') });
+    const win = commandFor(wallet, {
+      kind: WagerTransactionKind.Win,
+      money: brl('100.00'),
+    });
     await submit(h, win);
     await submit(h, commandFor(wallet, { money: brl('150.00') }));
 
@@ -574,7 +711,10 @@ describe('business rejections', () => {
 
   it('rejects a transaction whose player does not own the wallet', async () => {
     const wallet = await createWallet(h, '100.00');
-    const result = await submit(h, commandFor(wallet, { playerId: crypto.randomUUID() }));
+    const result = await submit(
+      h,
+      commandFor(wallet, { playerId: crypto.randomUUID() }),
+    );
 
     expect(result.status).toBe(WagerTransactionStatus.Rejected);
     expect(result.failureCode).toBe(FailureCode.PlayerWalletMismatch);
@@ -611,7 +751,9 @@ describe('transactional outbox', () => {
     await h.outboxPublisher().tick();
 
     const published = await drainQueue(h.env.SQS_EVENTS_QUEUE_NAME);
-    const eventTypes = published.map((body) => JSON.parse(body).eventType).sort((a, b) => a.localeCompare(b));
+    const eventTypes = published
+      .map((body) => JSON.parse(body).eventType)
+      .sort((a, b) => a.localeCompare(b));
     expect(eventTypes).toEqual([
       'WagerTransactionProcessed',
       'WagerTransactionProcessed',
@@ -667,7 +809,9 @@ describe('transactional outbox', () => {
     }
 
     const published = await drainQueue(h.env.SQS_EVENTS_QUEUE_NAME);
-    expect(published.map((body) => JSON.parse(body).eventType)).toContain('WagerTransactionProcessed');
+    expect(published.map((body) => JSON.parse(body).eventType)).toContain(
+      'WagerTransactionProcessed',
+    );
     const [counts] = await h.sql<{ pending: number }>(
       'select count(*)::int as pending from outbox_messages where published_at is null',
     );
@@ -679,7 +823,13 @@ describe('sqs consumer', () => {
   let consumer: SqsConsumer;
 
   beforeAll(async () => {
-    consumer = new SqsConsumer(h.sqs, h.queues, h.processTransaction, h.clock, h.env);
+    consumer = new SqsConsumer(
+      h.sqs,
+      h.queues,
+      h.processTransaction,
+      h.clock,
+      h.env,
+    );
     await consumer.onApplicationBootstrap();
   }, 60_000);
 
@@ -705,7 +855,11 @@ describe('sqs consumer', () => {
     await sendRaw(h.env.SQS_QUEUE_NAME, JSON.stringify(body), wallet.id);
 
     let row = await walletRow(h, wallet.id);
-    for (let attempt = 0; attempt < 30 && row!.balance !== '75.00'; attempt += 1) {
+    for (
+      let attempt = 0;
+      attempt < 30 && row!.balance !== '75.00';
+      attempt += 1
+    ) {
       await wait(500);
       row = await walletRow(h, wallet.id);
     }
@@ -716,7 +870,9 @@ describe('sqs consumer', () => {
     await wait(2_500);
     expect((await walletRow(h, wallet.id))!.balance).toBe('75.00');
 
-    const [inbox] = await h.sql<{ count: number }>('select count(*)::int as count from inbox_messages');
+    const [inbox] = await h.sql<{ count: number }>(
+      'select count(*)::int as count from inbox_messages',
+    );
     expect(inbox!.count).toBe(1);
 
     // Invalid payload and unknown wallet are permanent failures -> DLQ.
@@ -726,7 +882,12 @@ describe('sqs consumer', () => {
       JSON.stringify({
         ...body,
         messageId: `msg-${crypto.randomUUID()}`,
-        data: { ...body.data, walletId: crypto.randomUUID(), idempotencyKey: 'new-key', externalTransactionId: 'new-ext' },
+        data: {
+          ...body.data,
+          walletId: crypto.randomUUID(),
+          idempotencyKey: 'new-key',
+          externalTransactionId: 'new-ext',
+        },
       }),
       'missing-wallet',
     );
@@ -754,7 +915,8 @@ describe('reconciliation', () => {
     do {
       const page = await ledger.execute(wallet.id, cursor, 2);
       seen.push(...page.entries.map((entry) => entry.id));
-      cursor = page.nextCursor === null ? null : decodeLedgerCursor(page.nextCursor);
+      cursor =
+        page.nextCursor === null ? null : decodeLedgerCursor(page.nextCursor);
     } while (cursor !== null);
 
     expect(seen).toHaveLength(6);

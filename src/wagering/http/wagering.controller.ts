@@ -1,4 +1,13 @@
-import { Body, Controller, Get, Headers, HttpStatus, Param, Post, Res } from '@nestjs/common';
+import {
+  Body,
+  Controller,
+  Get,
+  Headers,
+  HttpStatus,
+  Param,
+  Post,
+  Res,
+} from '@nestjs/common';
 import type { Response } from 'express';
 import {
   ProcessWagerTransactionUseCase,
@@ -7,8 +16,15 @@ import {
 import { Inject } from '@nestjs/common';
 import { GetWagerTransactionUseCase } from '../application/wager-queries.use-case.js';
 import { parseHttpWagerCommand } from '../application/wager-command.js';
-import { TransactionOrigin, WagerTransaction, WagerTransactionStatus } from '../domain/wager-transaction.js';
-import { getLogContext, enrichLogContext } from '../../platform/logging/log-context.js';
+import {
+  TransactionOrigin,
+  WagerTransaction,
+  WagerTransactionStatus,
+} from '../domain/wager-transaction.js';
+import {
+  getLogContext,
+  enrichLogContext,
+} from '../../platform/logging/log-context.js';
 import { ZodValidationPipe } from '../../platform/http/zod-validation.pipe.js';
 import { uuidSchema } from '../../platform/http/schemas.js';
 
@@ -27,7 +43,10 @@ export class WageringController {
     @Res({ passthrough: true }) response: Response,
   ): Promise<Record<string, unknown>> {
     const command = parseHttpWagerCommand(body, idempotencyKey);
-    enrichLogContext({ walletId: command.walletId, providerId: command.providerId });
+    enrichLogContext({
+      walletId: command.walletId,
+      providerId: command.providerId,
+    });
 
     const result = await this.processTransaction.execute(command, {
       origin: TransactionOrigin.Api,
@@ -62,7 +81,10 @@ export class WageringController {
   }
 
   @Get('wagering/transactions/:transactionId')
-  async byId(@Param('transactionId', new ZodValidationPipe(uuidSchema)) transactionId: string) {
+  async byId(
+    @Param('transactionId', new ZodValidationPipe(uuidSchema))
+    transactionId: string,
+  ) {
     const transaction = await this.queries.byId(transactionId);
     return serializeTransaction(transaction);
   }
@@ -72,12 +94,17 @@ export class WageringController {
     @Param('providerId') providerId: string,
     @Param('externalTransactionId') externalTransactionId: string,
   ) {
-    const transaction = await this.queries.byProviderExternalId(providerId, externalTransactionId);
+    const transaction = await this.queries.byProviderExternalId(
+      providerId,
+      externalTransactionId,
+    );
     return serializeTransaction(transaction);
   }
 }
 
-function serializeTransaction(transaction: WagerTransaction): Record<string, unknown> {
+function serializeTransaction(
+  transaction: WagerTransaction,
+): Record<string, unknown> {
   const payload: Record<string, unknown> = {
     transactionId: transaction.id,
     providerId: transaction.providerId,
@@ -92,7 +119,8 @@ function serializeTransaction(transaction: WagerTransaction): Record<string, unk
     createdAt: transaction.createdAt.toISOString(),
   };
   if (transaction.referenceExternalTransactionId !== undefined) {
-    payload.referenceExternalTransactionId = transaction.referenceExternalTransactionId;
+    payload.referenceExternalTransactionId =
+      transaction.referenceExternalTransactionId;
   }
   if (transaction.referenceTransactionId !== undefined) {
     payload.referenceTransactionId = transaction.referenceTransactionId;

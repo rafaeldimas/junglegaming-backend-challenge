@@ -1,7 +1,15 @@
 import { EntityManager, LockMode } from '@mikro-orm/postgresql';
 import { WagerTransactionRepository } from '../application/ports.js';
-import { WagerTransaction, WagerTransactionKind, WagerTransactionStatus } from '../domain/wager-transaction.js';
-import { WagerTransactionRow, rowToWagerTransaction, wagerTransactionToRow } from './wager-transaction.row.js';
+import {
+  WagerTransaction,
+  WagerTransactionKind,
+  WagerTransactionStatus,
+} from '../domain/wager-transaction.js';
+import {
+  WagerTransactionRow,
+  rowToWagerTransaction,
+  wagerTransactionToRow,
+} from './wager-transaction.row.js';
 
 export class MikroOrmWagerTransactionRepository implements WagerTransactionRepository {
   /** Rows persisted in this transaction, so a second `update` never re-queries the DB. */
@@ -27,12 +35,21 @@ export class MikroOrmWagerTransactionRepository implements WagerTransactionRepos
     providerId: string,
     externalTransactionId: string,
   ): Promise<WagerTransaction | null> {
-    const row = await this.em.findOne(WagerTransactionRow, { providerId, externalTransactionId });
+    const row = await this.em.findOne(WagerTransactionRow, {
+      providerId,
+      externalTransactionId,
+    });
     return row === null ? null : rowToWagerTransaction(row);
   }
 
-  async findByIdempotencyKey(providerId: string, idempotencyKey: string): Promise<WagerTransaction | null> {
-    const row = await this.em.findOne(WagerTransactionRow, { providerId, idempotencyKey });
+  async findByIdempotencyKey(
+    providerId: string,
+    idempotencyKey: string,
+  ): Promise<WagerTransaction | null> {
+    const row = await this.em.findOne(WagerTransactionRow, {
+      providerId,
+      idempotencyKey,
+    });
     return row === null ? null : rowToWagerTransaction(row);
   }
 
@@ -44,9 +61,12 @@ export class MikroOrmWagerTransactionRepository implements WagerTransactionRepos
 
   async update(transaction: WagerTransaction): Promise<void> {
     const row =
-      this.rows.get(transaction.id) ?? (await this.em.findOne(WagerTransactionRow, { id: transaction.id }));
+      this.rows.get(transaction.id) ??
+      (await this.em.findOne(WagerTransactionRow, { id: transaction.id }));
     if (row === null || row === undefined) {
-      throw new Error(`Cannot update wager transaction ${transaction.id}: row not found`);
+      throw new Error(
+        `Cannot update wager transaction ${transaction.id}: row not found`,
+      );
     }
     this.rows.set(transaction.id, row);
     wagerTransactionToRow(transaction, this.em, row);
@@ -64,12 +84,18 @@ export class MikroOrmWagerTransactionRepository implements WagerTransactionRepos
     return row === null ? null : rowToWagerTransaction(row);
   }
 
-  async findPendingReferences(limit: number, now: Date): Promise<WagerTransaction[]> {
+  async findPendingReferences(
+    limit: number,
+    now: Date,
+  ): Promise<WagerTransaction[]> {
     const rows = await this.em.find(
       WagerTransactionRow,
       {
         status: WagerTransactionStatus.PendingReference,
-        $or: [{ nextReferenceRetryAt: null }, { nextReferenceRetryAt: { $lte: now } }],
+        $or: [
+          { nextReferenceRetryAt: null },
+          { nextReferenceRetryAt: { $lte: now } },
+        ],
       },
       { orderBy: { createdAt: 'asc' }, limit },
     );
@@ -77,6 +103,8 @@ export class MikroOrmWagerTransactionRepository implements WagerTransactionRepos
   }
 
   async countPendingReferences(): Promise<number> {
-    return this.em.count(WagerTransactionRow, { status: WagerTransactionStatus.PendingReference });
+    return this.em.count(WagerTransactionRow, {
+      status: WagerTransactionStatus.PendingReference,
+    });
   }
 }

@@ -1,9 +1,19 @@
-import { TransactionOrigin, WagerTransaction, WagerTransactionStatus } from '../domain/wager-transaction.js';
+import {
+  TransactionOrigin,
+  WagerTransaction,
+  WagerTransactionStatus,
+} from '../domain/wager-transaction.js';
 import { FailureCode } from '../domain/failure-code.js';
-import { canonicalWagerPayload, hashWagerPayload } from '../domain/canonical-payload.js';
+import {
+  canonicalWagerPayload,
+  hashWagerPayload,
+} from '../domain/canonical-payload.js';
 import { Money } from '../../shared/domain/money.js';
 import { InvalidTransactionStateError } from '../../shared/domain/errors.js';
-import { UnitOfWork, TransactionContext } from '../../platform/database/transaction-context.js';
+import {
+  UnitOfWork,
+  TransactionContext,
+} from '../../platform/database/transaction-context.js';
 import { Clock } from '../../shared/domain/clock.js';
 import { IdGenerator } from '../../shared/domain/id-generator.js';
 import { InboxMessage } from '../../messaging/domain/inbox-message.js';
@@ -75,8 +85,13 @@ export class ProcessWagerTransactionUseCase {
     const startedAt = performance.now();
 
     try {
-      const result = await this.uow.execute((ctx) => this.run(ctx, command, payloadHash, options));
-      metrics.processingLatency.observe({ kind: command.kind }, (performance.now() - startedAt) / 1000);
+      const result = await this.uow.execute((ctx) =>
+        this.run(ctx, command, payloadHash, options),
+      );
+      metrics.processingLatency.observe(
+        { kind: command.kind },
+        (performance.now() - startedAt) / 1000,
+      );
       enrichLogContext({ transactionId: result.transactionId ?? undefined });
       return result;
     } catch (error) {
@@ -87,7 +102,10 @@ export class ProcessWagerTransactionUseCase {
       const result = await this.uow.execute((ctx) =>
         this.resolveUniqueConflict(ctx, command, payloadHash, options),
       );
-      metrics.processingLatency.observe({ kind: command.kind }, (performance.now() - startedAt) / 1000);
+      metrics.processingLatency.observe(
+        { kind: command.kind },
+        (performance.now() - startedAt) / 1000,
+      );
       return result;
     }
   }
@@ -117,7 +135,10 @@ export class ProcessWagerTransactionUseCase {
       const won = await ctx.inbox.tryInsert(received);
       if (!won) {
         metrics.inboxDuplicates.inc();
-        logger.debug({ messageId: options.inbox.messageId }, 'inbox duplicate message ignored');
+        logger.debug(
+          { messageId: options.inbox.messageId },
+          'inbox duplicate message ignored',
+        );
         const existing = await ctx.wagerTransactions.findByIdempotencyKey(
           command.providerId,
           command.idempotencyKey,
@@ -167,10 +188,20 @@ export class ProcessWagerTransactionUseCase {
       throw new WalletNotFoundError(command.walletId);
     }
 
-    const transaction = await this.createOrReject(ctx, command, payloadHash, options, now);
+    const transaction = await this.createOrReject(
+      ctx,
+      command,
+      payloadHash,
+      options,
+      now,
+    );
     if (transaction.status === WagerTransactionStatus.Rejected) {
       if (options.inbox !== undefined) {
-        await ctx.inbox.markProcessed(options.inbox.consumerName, options.inbox.messageId, this.clock.now());
+        await ctx.inbox.markProcessed(
+          options.inbox.consumerName,
+          options.inbox.messageId,
+          this.clock.now(),
+        );
       }
       return {
         transactionId: transaction.id,
@@ -188,7 +219,11 @@ export class ProcessWagerTransactionUseCase {
     });
 
     if (options.inbox !== undefined) {
-      await ctx.inbox.markProcessed(options.inbox.consumerName, options.inbox.messageId, this.clock.now());
+      await ctx.inbox.markProcessed(
+        options.inbox.consumerName,
+        options.inbox.messageId,
+        this.clock.now(),
+      );
     }
 
     return {
@@ -235,7 +270,9 @@ export class ProcessWagerTransactionUseCase {
     // A unique constraint other than the idempotency keys fired (for example
     // the one-reversal-per-kind index). The client must retry and will then get
     // the deterministic ALREADY_REVERSED / conflict answer.
-    throw new IdempotencyConflictError('Concurrent transaction conflict, retry the request');
+    throw new IdempotencyConflictError(
+      'Concurrent transaction conflict, retry the request',
+    );
   }
 
   private async createOrReject(
@@ -302,4 +339,6 @@ export class ProcessWagerTransactionUseCase {
   }
 }
 
-export const PROCESS_WAGER_TRANSACTION_USE_CASE = Symbol('ProcessWagerTransactionUseCase');
+export const PROCESS_WAGER_TRANSACTION_USE_CASE = Symbol(
+  'ProcessWagerTransactionUseCase',
+);

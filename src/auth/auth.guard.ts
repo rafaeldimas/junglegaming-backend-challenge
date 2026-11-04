@@ -1,4 +1,9 @@
-import { CanActivate, ExecutionContext, Injectable, SetMetadata } from '@nestjs/common';
+import {
+  CanActivate,
+  ExecutionContext,
+  Injectable,
+  SetMetadata,
+} from '@nestjs/common';
 import { Reflector } from '@nestjs/core';
 import { PROVIDER_IDENTITY } from '../config/tokens.js';
 import { Inject } from '@nestjs/common';
@@ -43,7 +48,8 @@ export class NoopProviderIdentityAdapter implements ProviderIdentityPort {
 export class AuthGuard implements CanActivate {
   constructor(
     private readonly reflector: Reflector,
-    @Inject(PROVIDER_IDENTITY_PORT) private readonly identity: ProviderIdentityPort,
+    @Inject(PROVIDER_IDENTITY_PORT)
+    private readonly identity: ProviderIdentityPort,
   ) {}
 
   async canActivate(context: ExecutionContext): Promise<boolean> {
@@ -59,7 +65,9 @@ export class AuthGuard implements CanActivate {
       return true;
     }
 
-    const request = context.switchToHttp().getRequest<{ providerIdentity?: ProviderIdentity }>();
+    const request = context
+      .switchToHttp()
+      .getRequest<{ providerIdentity?: ProviderIdentity }>();
     const identity = await this.identity.resolve(request);
     if (identity === null) {
       return false;

@@ -57,13 +57,22 @@ export class Wallet {
       throw new InvalidWalletOperationError('Wallet id must not be empty');
     }
     if (props.playerId.length === 0) {
-      throw new InvalidWalletOperationError('Wallet playerId must not be empty');
+      throw new InvalidWalletOperationError(
+        'Wallet playerId must not be empty',
+      );
     }
     if (props.initialBalance.isNegative()) {
-      throw new InvalidWalletOperationError('Wallet initial balance must not be negative');
+      throw new InvalidWalletOperationError(
+        'Wallet initial balance must not be negative',
+      );
     }
-    if (!(props.openedAt instanceof Date) || Number.isNaN(props.openedAt.getTime())) {
-      throw new InvalidWalletOperationError('Wallet openedAt must be a valid date');
+    if (
+      !(props.openedAt instanceof Date) ||
+      Number.isNaN(props.openedAt.getTime())
+    ) {
+      throw new InvalidWalletOperationError(
+        'Wallet openedAt must be a valid date',
+      );
     }
 
     return new Wallet(
@@ -121,7 +130,13 @@ export class Wallet {
     const balanceBefore = this._balance;
     const balanceAfter = balanceBefore.subtract(money);
 
-    return this.applyMovement(LedgerDirection.Debit, money, balanceBefore, balanceAfter, movement);
+    return this.applyMovement(
+      LedgerDirection.Debit,
+      money,
+      balanceBefore,
+      balanceAfter,
+      movement,
+    );
   }
 
   /** Credits `money` and returns the matching ledger entry. */
@@ -131,7 +146,13 @@ export class Wallet {
     const balanceBefore = this._balance;
     const balanceAfter = balanceBefore.add(money);
 
-    return this.applyMovement(LedgerDirection.Credit, money, balanceBefore, balanceAfter, movement);
+    return this.applyMovement(
+      LedgerDirection.Credit,
+      money,
+      balanceBefore,
+      balanceAfter,
+      movement,
+    );
   }
 
   private applyMovement(
@@ -164,13 +185,19 @@ export class Wallet {
       throw new CurrencyMismatchError(this.currency, money.currency);
     }
     if (money.isNegative() || money.isZero()) {
-      throw new InvalidWalletOperationError('Wallet movement amount must be strictly positive');
+      throw new InvalidWalletOperationError(
+        'Wallet movement amount must be strictly positive',
+      );
     }
     if (movement.entryId.length === 0 || movement.transactionId.length === 0) {
-      throw new InvalidWalletOperationError('Wallet movement ids must not be empty');
+      throw new InvalidWalletOperationError(
+        'Wallet movement ids must not be empty',
+      );
     }
     if (!(movement.at instanceof Date) || Number.isNaN(movement.at.getTime())) {
-      throw new InvalidWalletOperationError('Wallet movement date must be valid');
+      throw new InvalidWalletOperationError(
+        'Wallet movement date must be valid',
+      );
     }
   }
 }

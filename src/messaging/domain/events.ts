@@ -1,5 +1,8 @@
 import { MoneyProps } from '../../shared/domain/money.js';
-import { LedgerDirection, WalletLedgerEntry } from '../../wallets/domain/wallet-ledger-entry.js';
+import {
+  LedgerDirection,
+  WalletLedgerEntry,
+} from '../../wallets/domain/wallet-ledger-entry.js';
 import { Wallet } from '../../wallets/domain/wallet.js';
 import { FailureCode } from '../../wagering/domain/failure-code.js';
 import {
@@ -43,7 +46,10 @@ export class WagerTransactionProcessed extends IntegrationEvent<WagerTransaction
   readonly eventType = 'WagerTransactionProcessed';
   readonly version = 1;
 
-  static from(transaction: WagerTransaction, ctx: EventContext): WagerTransactionProcessed {
+  static from(
+    transaction: WagerTransaction,
+    ctx: EventContext,
+  ): WagerTransactionProcessed {
     return new WagerTransactionProcessed({
       eventId: ctx.eventId,
       aggregateId: transaction.id,
@@ -66,13 +72,20 @@ export class WagerTransactionProcessed extends IntegrationEvent<WagerTransaction
   }
 }
 
-export class WagerTransactionRejected extends IntegrationEvent<WagerTransactionEventData & { failureCode: FailureCode }> {
+export class WagerTransactionRejected extends IntegrationEvent<
+  WagerTransactionEventData & { failureCode: FailureCode }
+> {
   readonly eventType = 'WagerTransactionRejected';
   readonly version = 1;
 
-  static from(transaction: WagerTransaction, ctx: EventContext): WagerTransactionRejected {
+  static from(
+    transaction: WagerTransaction,
+    ctx: EventContext,
+  ): WagerTransactionRejected {
     if (transaction.failureCode === undefined) {
-      throw new Error(`Transaction ${transaction.id} is rejected without a failureCode`);
+      throw new Error(
+        `Transaction ${transaction.id} is rejected without a failureCode`,
+      );
     }
     return new WagerTransactionRejected({
       eventId: ctx.eventId,
@@ -101,7 +114,11 @@ export class WalletBalanceChanged extends IntegrationEvent<WalletBalanceChangedD
   readonly eventType = 'WalletBalanceChanged';
   readonly version = 1;
 
-  static from(wallet: Wallet, entry: WalletLedgerEntry, ctx: EventContext): WalletBalanceChanged {
+  static from(
+    wallet: Wallet,
+    entry: WalletLedgerEntry,
+    ctx: EventContext,
+  ): WalletBalanceChanged {
     return new WalletBalanceChanged({
       eventId: ctx.eventId,
       aggregateId: wallet.id,
@@ -132,7 +149,9 @@ export class WagerTransactionPendingReference extends IntegrationEvent<WagerTran
     ctx: EventContext,
   ): WagerTransactionPendingReference {
     if (transaction.referenceExternalTransactionId === undefined) {
-      throw new Error(`Transaction ${transaction.id} is pending reference without a reference id`);
+      throw new Error(
+        `Transaction ${transaction.id} is pending reference without a reference id`,
+      );
     }
     return new WagerTransactionPendingReference({
       eventId: ctx.eventId,
@@ -151,7 +170,8 @@ export class WagerTransactionPendingReference extends IntegrationEvent<WagerTran
         kind: transaction.kind,
         status: WagerTransactionStatus.PendingReference,
         money: transaction.money.toJSON(),
-        referenceExternalTransactionId: transaction.referenceExternalTransactionId,
+        referenceExternalTransactionId:
+          transaction.referenceExternalTransactionId,
         attempt,
         nextAttemptAt: nextAttemptAt.toISOString(),
       },

@@ -3,7 +3,10 @@ import { APP_ENV } from '../config/tokens.js';
 import { AppEnv } from '../config/env.js';
 import { Clock, CLOCK } from '../shared/domain/clock.js';
 import { IdGenerator, ID_GENERATOR } from '../shared/domain/id-generator.js';
-import { UnitOfWork, UNIT_OF_WORK } from '../platform/database/transaction-context.js';
+import {
+  UnitOfWork,
+  UNIT_OF_WORK,
+} from '../platform/database/transaction-context.js';
 import { WagerTransactionApplier } from './application/wager-transaction-applier.js';
 import {
   PROCESS_WAGER_TRANSACTION_USE_CASE,

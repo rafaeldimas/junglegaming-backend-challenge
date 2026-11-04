@@ -8,9 +8,15 @@ describe('Money', () => {
         amount: '25.00',
         currency: 'BRL',
       });
-      expect(Money.from({ amount: '25.5', currency: 'BRL' }).toJSON().amount).toBe('25.50');
-      expect(Money.from({ amount: '0.01', currency: 'BRL' }).toJSON().amount).toBe('0.01');
-      expect(Money.from({ amount: '000123.4', currency: 'BRL' }).toJSON().amount).toBe('123.40');
+      expect(
+        Money.from({ amount: '25.5', currency: 'BRL' }).toJSON().amount,
+      ).toBe('25.50');
+      expect(
+        Money.from({ amount: '0.01', currency: 'BRL' }).toJSON().amount,
+      ).toBe('0.01');
+      expect(
+        Money.from({ amount: '000123.4', currency: 'BRL' }).toJSON().amount,
+      ).toBe('123.40');
     });
 
     it.each([
@@ -23,17 +29,26 @@ describe('Money', () => {
       ['Infinity', 'Infinity'],
       ['NaN', 'NaN'],
       ['1,00', 'comma separator'],
-      [' 1.00', 'surrounding space is trimmed but content must still be numeric'],
+      [
+        ' 1.00',
+        'surrounding space is trimmed but content must still be numeric',
+      ],
     ])('rejects %s (%s)', (amount) => {
-      expect(() => Money.from({ amount, currency: 'BRL' })).toThrow(InvalidMoneyError);
+      expect(() => Money.from({ amount, currency: 'BRL' })).toThrow(
+        InvalidMoneyError,
+      );
     });
 
     it('rejects non-string amounts and unknown currencies', () => {
-      expect(() => Money.from({ amount: 10 as unknown as string, currency: 'BRL' })).toThrow(
+      expect(() =>
+        Money.from({ amount: 10 as unknown as string, currency: 'BRL' }),
+      ).toThrow(InvalidMoneyError);
+      expect(() => Money.from({ amount: '1.00', currency: 'brl' })).toThrow(
         InvalidMoneyError,
       );
-      expect(() => Money.from({ amount: '1.00', currency: 'brl' })).toThrow(InvalidMoneyError);
-      expect(() => Money.from({ amount: '1.00', currency: 'BRLX' })).toThrow(InvalidMoneyError);
+      expect(() => Money.from({ amount: '1.00', currency: 'BRLX' })).toThrow(
+        InvalidMoneyError,
+      );
     });
   });
 
@@ -69,8 +84,12 @@ describe('Money', () => {
     const brl = Money.from({ amount: '10.00', currency: 'BRL' });
     const usd = Money.from({ amount: '10.00', currency: 'USD' });
 
-    expect(brl.equals(Money.from({ amount: '10.00', currency: 'BRL' }))).toBe(true);
-    expect(brl.isLessThan(Money.from({ amount: '10.01', currency: 'BRL' }))).toBe(true);
+    expect(brl.equals(Money.from({ amount: '10.00', currency: 'BRL' }))).toBe(
+      true,
+    );
+    expect(
+      brl.isLessThan(Money.from({ amount: '10.01', currency: 'BRL' })),
+    ).toBe(true);
     expect(() => brl.add(usd)).toThrow(CurrencyMismatchError);
     expect(() => brl.subtract(usd)).toThrow(CurrencyMismatchError);
     expect(() => brl.equals(usd)).toThrow(CurrencyMismatchError);
@@ -80,9 +99,13 @@ describe('Money', () => {
     expect(Money.zero('BRL').isZero()).toBe(true);
     expect(Money.zero('BRL').isPositive()).toBe(false);
     expect(Money.zero('BRL').isNegative()).toBe(false);
-    expect(Money.from({ amount: '0.01', currency: 'BRL' }).isPositive()).toBe(true);
-    expect(Money.zero('BRL').subtract(Money.from({ amount: '0.02', currency: 'BRL' })).isNegative()).toBe(
+    expect(Money.from({ amount: '0.01', currency: 'BRL' }).isPositive()).toBe(
       true,
     );
+    expect(
+      Money.zero('BRL')
+        .subtract(Money.from({ amount: '0.02', currency: 'BRL' }))
+        .isNegative(),
+    ).toBe(true);
   });
 });

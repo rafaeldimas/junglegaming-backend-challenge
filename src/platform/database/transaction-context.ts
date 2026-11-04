@@ -1,7 +1,16 @@
 import { EntityManager } from '@mikro-orm/postgresql';
-import { InboxRepository, OutboxRepository } from '../../messaging/application/ports.js';
-import { MikroOrmInboxRepository, MikroOrmOutboxRepository } from '../../messaging/persistence/repositories.js';
-import { LedgerRepository, WalletRepository } from '../../wallets/application/ports.js';
+import {
+  InboxRepository,
+  OutboxRepository,
+} from '../../messaging/application/ports.js';
+import {
+  MikroOrmInboxRepository,
+  MikroOrmOutboxRepository,
+} from '../../messaging/persistence/repositories.js';
+import {
+  LedgerRepository,
+  WalletRepository,
+} from '../../wallets/application/ports.js';
 import {
   MikroOrmLedgerRepository,
   MikroOrmWalletRepository,

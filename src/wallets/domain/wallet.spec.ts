@@ -1,4 +1,8 @@
-import { CurrencyMismatchError, InsufficientFundsError, InvalidWalletOperationError } from '../../shared/domain/errors.js';
+import {
+  CurrencyMismatchError,
+  InsufficientFundsError,
+  InvalidWalletOperationError,
+} from '../../shared/domain/errors.js';
 import { Money } from '../../shared/domain/money.js';
 import { LedgerDirection } from './wallet-ledger-entry.js';
 import { Wallet, WalletMovement } from './wallet.js';
@@ -14,14 +18,22 @@ function movement(index: number): WalletMovement {
 }
 
 function openWallet(initial = '100.00'): Wallet {
-  return Wallet.open({ id: 'wallet-1', playerId: 'player-1', initialBalance: brl(initial), openedAt: NOW });
+  return Wallet.open({
+    id: 'wallet-1',
+    playerId: 'player-1',
+    initialBalance: brl(initial),
+    openedAt: NOW,
+  });
 }
 
 describe('Wallet', () => {
   it('opens with the initial balance, version 1 and the operation currency', () => {
     const wallet = openWallet();
 
-    expect(wallet.balance.toJSON()).toEqual({ amount: '100.00', currency: 'BRL' });
+    expect(wallet.balance.toJSON()).toEqual({
+      amount: '100.00',
+      currency: 'BRL',
+    });
     expect(wallet.currency).toBe('BRL');
     expect(wallet.version).toBe(1);
     expect(wallet.createdAt).toBe(NOW);
@@ -30,13 +42,28 @@ describe('Wallet', () => {
 
   it('rejects invalid opening props', () => {
     expect(() =>
-      Wallet.open({ id: '', playerId: 'p', initialBalance: brl('1.00'), openedAt: NOW }),
+      Wallet.open({
+        id: '',
+        playerId: 'p',
+        initialBalance: brl('1.00'),
+        openedAt: NOW,
+      }),
     ).toThrow(InvalidWalletOperationError);
     expect(() =>
-      Wallet.open({ id: 'w', playerId: '', initialBalance: brl('1.00'), openedAt: NOW }),
+      Wallet.open({
+        id: 'w',
+        playerId: '',
+        initialBalance: brl('1.00'),
+        openedAt: NOW,
+      }),
     ).toThrow(InvalidWalletOperationError);
     expect(() =>
-      Wallet.open({ id: 'w', playerId: 'p', initialBalance: brl('1.00'), openedAt: new Date('nope') }),
+      Wallet.open({
+        id: 'w',
+        playerId: 'p',
+        initialBalance: brl('1.00'),
+        openedAt: new Date('nope'),
+      }),
     ).toThrow(InvalidWalletOperationError);
   });
 
@@ -65,7 +92,9 @@ describe('Wallet', () => {
   it('never allows a negative balance', () => {
     const wallet = openWallet('10.00');
 
-    expect(() => wallet.debit(brl('10.01'), movement(1))).toThrow(InsufficientFundsError);
+    expect(() => wallet.debit(brl('10.01'), movement(1))).toThrow(
+      InsufficientFundsError,
+    );
     expect(wallet.balance.toJSON().amount).toBe('10.00');
     expect(wallet.version).toBe(1);
   });
@@ -80,24 +109,35 @@ describe('Wallet', () => {
 
   it('rejects movements in another currency', () => {
     const wallet = openWallet();
-    expect(() => wallet.debit(Money.from({ amount: '1.00', currency: 'USD' }), movement(1))).toThrow(
-      CurrencyMismatchError,
-    );
+    expect(() =>
+      wallet.debit(
+        Money.from({ amount: '1.00', currency: 'USD' }),
+        movement(1),
+      ),
+    ).toThrow(CurrencyMismatchError);
   });
 
   it('rejects zero, negative and malformed movements', () => {
     const wallet = openWallet();
 
-    expect(() => wallet.credit(brl('0.00'), movement(1))).toThrow(InvalidWalletOperationError);
-    expect(() => wallet.credit(brl('1.00').negate(), movement(1))).toThrow(InvalidWalletOperationError);
-    expect(() => wallet.credit(brl('1.00'), { entryId: '', transactionId: 'tx', at: NOW })).toThrow(
+    expect(() => wallet.credit(brl('0.00'), movement(1))).toThrow(
       InvalidWalletOperationError,
     );
-    expect(() => wallet.credit(brl('1.00'), { entryId: 'e', transactionId: '', at: NOW })).toThrow(
+    expect(() => wallet.credit(brl('1.00').negate(), movement(1))).toThrow(
       InvalidWalletOperationError,
     );
     expect(() =>
-      wallet.credit(brl('1.00'), { entryId: 'e', transactionId: 'tx', at: new Date('nope') }),
+      wallet.credit(brl('1.00'), { entryId: '', transactionId: 'tx', at: NOW }),
+    ).toThrow(InvalidWalletOperationError);
+    expect(() =>
+      wallet.credit(brl('1.00'), { entryId: 'e', transactionId: '', at: NOW }),
+    ).toThrow(InvalidWalletOperationError);
+    expect(() =>
+      wallet.credit(brl('1.00'), {
+        entryId: 'e',
+        transactionId: 'tx',
+        at: new Date('nope'),
+      }),
     ).toThrow(InvalidWalletOperationError);
   });
 

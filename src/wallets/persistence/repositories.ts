@@ -1,22 +1,46 @@
 import { EntityManager, LockMode } from '@mikro-orm/postgresql';
 import { Money } from '../../shared/domain/money.js';
-import { LedgerCursor, LedgerPage, LedgerRepository, WalletRepository } from '../application/ports.js';
+import {
+  LedgerCursor,
+  LedgerPage,
+  LedgerRepository,
+  WalletRepository,
+} from '../application/ports.js';
 import { Wallet } from '../domain/wallet.js';
-import { LedgerDirection, WalletLedgerEntry } from '../domain/wallet-ledger-entry.js';
-import { LedgerEntryRow, ledgerEntryToRow, rowToLedgerEntry } from './ledger-entry.row.js';
+import {
+  LedgerDirection,
+  WalletLedgerEntry,
+} from '../domain/wallet-ledger-entry.js';
+import {
+  LedgerEntryRow,
+  ledgerEntryToRow,
+  rowToLedgerEntry,
+} from './ledger-entry.row.js';
 import { WalletRow, rowToWallet, walletToRow } from './wallet.row.js';
 
 export class MikroOrmWalletRepository implements WalletRepository {
   constructor(private readonly em: EntityManager) {}
 
-  async findById(id: string, options?: { forUpdate?: boolean }): Promise<Wallet | null> {
-    const row = await this.em.findOne(WalletRow, { id }, {
-      lockMode: options?.forUpdate ? LockMode.PESSIMISTIC_WRITE : LockMode.NONE,
-    });
+  async findById(
+    id: string,
+    options?: { forUpdate?: boolean },
+  ): Promise<Wallet | null> {
+    const row = await this.em.findOne(
+      WalletRow,
+      { id },
+      {
+        lockMode: options?.forUpdate
+          ? LockMode.PESSIMISTIC_WRITE
+          : LockMode.NONE,
+      },
+    );
     return row === null ? null : rowToWallet(row);
   }
 
-  async findByPlayerAndCurrency(playerId: string, currency: string): Promise<Wallet | null> {
+  async findByPlayerAndCurrency(
+    playerId: string,
+    currency: string,
+  ): Promise<Wallet | null> {
     const row = await this.em.findOne(WalletRow, { playerId, currency });
     return row === null ? null : rowToWallet(row);
   }
@@ -53,12 +77,20 @@ export class MikroOrmLedgerRepository implements LedgerRepository {
     this.em.persist(ledgerEntryToRow(entry, this.em));
   }
 
-  async findByTransactionId(transactionId: string): Promise<WalletLedgerEntry | null> {
-    const row = await this.em.findOne(LedgerEntryRow, { transaction: transactionId });
+  async findByTransactionId(
+    transactionId: string,
+  ): Promise<WalletLedgerEntry | null> {
+    const row = await this.em.findOne(LedgerEntryRow, {
+      transaction: transactionId,
+    });
     return row === null ? null : rowToLedgerEntry(row);
   }
 
-  async page(walletId: string, cursor: LedgerCursor | null, limit: number): Promise<LedgerPage> {
+  async page(
+    walletId: string,
+    cursor: LedgerCursor | null,
+    limit: number,
+  ): Promise<LedgerPage> {
     const params: unknown[] = [walletId];
     let cursorClause = '';
     if (cursor !== null) {
@@ -87,8 +119,14 @@ export class MikroOrmLedgerRepository implements LedgerRepository {
         transactionId: row.transaction_id,
         direction: row.direction,
         money: Money.from({ amount: row.amount, currency: row.currency }),
-        balanceBefore: Money.from({ amount: row.balance_before, currency: row.currency }),
-        balanceAfter: Money.from({ amount: row.balance_after, currency: row.currency }),
+        balanceBefore: Money.from({
+          amount: row.balance_before,
+          currency: row.currency,
+        }),
+        balanceAfter: Money.from({
+          amount: row.balance_after,
+          currency: row.currency,
+        }),
         createdAt: new Date(row.created_at),
       }),
     );
@@ -96,18 +134,23 @@ export class MikroOrmLedgerRepository implements LedgerRepository {
     const last = entries.at(-1);
     return {
       entries,
-      nextCursor: hasMore && last !== undefined ? { createdAt: last.createdAt, id: last.id } : null,
+      nextCursor:
+        hasMore && last !== undefined
+          ? { createdAt: last.createdAt, id: last.id }
+          : null,
     };
   }
 
   async aggregate(walletId: string, currency: string) {
-    const rows = await this.em.getConnection().execute<{ total: string; count: number | string }[]>(
-      `select coalesce(sum(case when direction = 'CREDIT' then amount else -amount end), 0)::text as total,
+    const rows = await this.em
+      .getConnection()
+      .execute<{ total: string; count: number | string }[]>(
+        `select coalesce(sum(case when direction = 'CREDIT' then amount else -amount end), 0)::text as total,
               count(*)::int as count
          from wallet_ledger_entries
         where wallet_id = ?`,
-      [walletId],
-    );
+        [walletId],
+      );
     const row = rows[0];
     const total = row?.total ?? '0';
     const count = Number(row?.count ?? 0);

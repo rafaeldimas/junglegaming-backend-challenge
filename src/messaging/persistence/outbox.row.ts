@@ -22,14 +22,28 @@ export const OutboxRowSchema = defineEntity({
     aggregateId: p.uuid().fieldName('aggregate_id'),
     eventType: p.string().fieldName('event_type'),
     payload: p.json<SerializedIntegrationEvent<unknown>>().columnType('jsonb'),
-    occurredAt: p.datetime().columnType('timestamptz(3)').fieldName('occurred_at'),
+    occurredAt: p
+      .datetime()
+      .columnType('timestamptz(3)')
+      .fieldName('occurred_at'),
     attempts: p.integer(),
-    nextAttemptAt: p.datetime().columnType('timestamptz(3)').nullable().fieldName('next_attempt_at'),
-    publishedAt: p.datetime().columnType('timestamptz(3)').nullable().fieldName('published_at'),
+    nextAttemptAt: p
+      .datetime()
+      .columnType('timestamptz(3)')
+      .nullable()
+      .fieldName('next_attempt_at'),
+    publishedAt: p
+      .datetime()
+      .columnType('timestamptz(3)')
+      .nullable()
+      .fieldName('published_at'),
   },
 });
 
-export function outboxToRow(message: OutboxMessage, row?: OutboxRow): OutboxRow {
+export function outboxToRow(
+  message: OutboxMessage,
+  row?: OutboxRow,
+): OutboxRow {
   const target = row ?? new OutboxRow();
   target.id = message.id;
   target.aggregateId = message.aggregateId;

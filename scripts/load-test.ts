@@ -57,7 +57,9 @@ async function main(): Promise<void> {
   const startedAt = performance.now();
   const deadline = startedAt + DURATION_SECONDS * 1_000;
   await Promise.all(
-    Array.from({ length: CONCURRENCY }, (_, worker) => runWorker(worker, wallets, deadline)),
+    Array.from({ length: CONCURRENCY }, (_, worker) =>
+      runWorker(worker, wallets, deadline),
+    ),
   );
   const elapsedSeconds = (performance.now() - startedAt) / 1_000;
 
@@ -78,7 +80,9 @@ async function createWallets(count: number): Promise<Wallet[]> {
       }),
     });
     if (response.status !== 201) {
-      throw new Error(`wallet creation failed: ${response.status} ${await response.text()}`);
+      throw new Error(
+        `wallet creation failed: ${response.status} ${await response.text()}`,
+      );
     }
     const body = (await response.json()) as { id: string };
     wallets.push({ id: body.id, playerId });
@@ -86,7 +90,11 @@ async function createWallets(count: number): Promise<Wallet[]> {
   return wallets;
 }
 
-async function runWorker(worker: number, wallets: Wallet[], deadline: number): Promise<void> {
+async function runWorker(
+  worker: number,
+  wallets: Wallet[],
+  deadline: number,
+): Promise<void> {
   let sequence = 0;
   while (performance.now() < deadline) {
     const wallet = wallets[(worker + sequence) % wallets.length]!;
@@ -94,19 +102,18 @@ async function runWorker(worker: number, wallets: Wallet[], deadline: number): P
     const known = replay
       ? knownRequests[Math.floor(Math.random() * knownRequests.length)]!
       : undefined;
-    const idempotencyKey = known?.idempotencyKey ?? `provider-load:${randomUUID()}`;
-    const requestBody =
-      known?.body ??
-      {
-        providerId: 'provider-load',
-        externalTransactionId: `load-${worker}-${sequence}-${randomUUID()}`,
-        playerId: wallet.playerId,
-        walletId: wallet.id,
-        roundId: `round-${worker}-${sequence}`,
-        gameId: 'load-test',
-        kind: 'BET',
-        money: { amount: BET_AMOUNT, currency: 'BRL' },
-      };
+    const idempotencyKey =
+      known?.idempotencyKey ?? `provider-load:${randomUUID()}`;
+    const requestBody = known?.body ?? {
+      providerId: 'provider-load',
+      externalTransactionId: `load-${worker}-${sequence}-${randomUUID()}`,
+      playerId: wallet.playerId,
+      walletId: wallet.id,
+      roundId: `round-${worker}-${sequence}`,
+      gameId: 'load-test',
+      kind: 'BET',
+      money: { amount: BET_AMOUNT, currency: 'BRL' },
+    };
 
     const startedAt = performance.now();
     let status = 0;
@@ -131,26 +138,40 @@ async function runWorker(worker: number, wallets: Wallet[], deadline: number): P
       failureCode = (error as Error).message;
     }
 
-    samples.push({ latencyMs: performance.now() - startedAt, status, failureCode });
+    samples.push({
+      latencyMs: performance.now() - startedAt,
+      status,
+      failureCode,
+    });
     sequence += 1;
   }
 }
 
 function report(elapsedSeconds: number): void {
-  const latencies = samples.map((sample) => sample.latencyMs).sort((a, b) => a - b);
+  const latencies = samples
+    .map((sample) => sample.latencyMs)
+    .sort((a, b) => a - b);
   const percentile = (value: number): number => {
     if (latencies.length === 0) {
       return 0;
     }
-    const index = Math.min(latencies.length - 1, Math.ceil((value / 100) * latencies.length) - 1);
+    const index = Math.min(
+      latencies.length - 1,
+      Math.ceil((value / 100) * latencies.length) - 1,
+    );
     return latencies[index]!;
   };
 
   const byStatus = new Map<string, number>();
   for (const sample of samples) {
-    byStatus.set(String(sample.status), (byStatus.get(String(sample.status)) ?? 0) + 1);
+    byStatus.set(
+      String(sample.status),
+      (byStatus.get(String(sample.status)) ?? 0) + 1,
+    );
   }
-  const failures = samples.filter((sample) => sample.status < 200 || sample.status >= 500).length;
+  const failures = samples.filter(
+    (sample) => sample.status < 200 || sample.status >= 500,
+  ).length;
   const conflicts = samples.filter((sample) => sample.status === 409).length;
   const rejections = samples.filter((sample) => sample.status === 422);
   const rejectionCodes = new Map<string, number>();
@@ -161,11 +182,15 @@ function report(elapsedSeconds: number): void {
 
   console.log('\n--- results ---');
   console.log(`requests:    ${samples.length}`);
-  console.log(`throughput:  ${(samples.length / elapsedSeconds).toFixed(1)} req/s`);
+  console.log(
+    `throughput:  ${(samples.length / elapsedSeconds).toFixed(1)} req/s`,
+  );
   console.log(`p50:         ${percentile(50).toFixed(1)} ms`);
   console.log(`p95:         ${percentile(95).toFixed(1)} ms`);
   console.log(`p99:         ${percentile(99).toFixed(1)} ms`);
-  console.log(`error rate:  ${((failures / Math.max(1, samples.length)) * 100).toFixed(2)}%`);
+  console.log(
+    `error rate:  ${((failures / Math.max(1, samples.length)) * 100).toFixed(2)}%`,
+  );
   console.log(`409:         ${conflicts}`);
   console.log(
     `422:         ${rejections.length} ${rejectionCodes.size > 0 ? JSON.stringify(Object.fromEntries(rejectionCodes)) : ''}`,
@@ -176,14 +201,22 @@ function report(elapsedSeconds: number): void {
 async function verifyReconciliation(wallets: Wallet[]): Promise<void> {
   let inconsistent = 0;
   for (const wallet of wallets) {
-    const response = await fetch(`${BASE_URL}/wallets/${wallet.id}/reconciliation`, { method: 'POST' });
-    const body = (await response.json()) as { consistent: boolean; checkedEntries: number };
+    const response = await fetch(
+      `${BASE_URL}/wallets/${wallet.id}/reconciliation`,
+      { method: 'POST' },
+    );
+    const body = (await response.json()) as {
+      consistent: boolean;
+      checkedEntries: number;
+    };
     if (!body.consistent) {
       inconsistent += 1;
       console.error(`wallet ${wallet.id} is inconsistent`);
     }
   }
-  console.log(`reconciliation: ${wallets.length - inconsistent}/${wallets.length} consistent`);
+  console.log(
+    `reconciliation: ${wallets.length - inconsistent}/${wallets.length} consistent`,
+  );
   if (inconsistent > 0) {
     process.exitCode = 1;
   }

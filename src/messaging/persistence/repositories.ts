@@ -3,7 +3,12 @@ import { InboxRepository, OutboxRepository } from '../application/ports.js';
 import { InboxMessage } from '../domain/inbox-message.js';
 import { OutboxMessage } from '../domain/outbox-message.js';
 import { InboxRow, InboxRowSchema } from './inbox.row.js';
-import { OutboxRow, OutboxRowSchema, outboxToRow, rowToOutboxMessage } from './outbox.row.js';
+import {
+  OutboxRow,
+  OutboxRowSchema,
+  outboxToRow,
+  rowToOutboxMessage,
+} from './outbox.row.js';
 
 export class MikroOrmInboxRepository implements InboxRepository {
   constructor(private readonly em: EntityManager) {}
@@ -14,12 +19,21 @@ export class MikroOrmInboxRepository implements InboxRepository {
        values (?, ?, ?, ?, ?)
        on conflict (consumer_name, message_id) do nothing
        returning id`,
-      [message.id, message.messageId, message.consumerName, message.payloadHash, message.receivedAt],
+      [
+        message.id,
+        message.messageId,
+        message.consumerName,
+        message.payloadHash,
+        message.receivedAt,
+      ],
     );
     return rows.length === 1;
   }
 
-  async find(consumerName: string, messageId: string): Promise<InboxMessage | null> {
+  async find(
+    consumerName: string,
+    messageId: string,
+  ): Promise<InboxMessage | null> {
     const row = await this.em.findOne(InboxRow, { consumerName, messageId });
     if (row === null) {
       return null;
@@ -34,8 +48,16 @@ export class MikroOrmInboxRepository implements InboxRepository {
     });
   }
 
-  async markProcessed(consumerName: string, messageId: string, at: Date): Promise<void> {
-    await this.em.nativeUpdate(InboxRow, { consumerName, messageId }, { processedAt: at });
+  async markProcessed(
+    consumerName: string,
+    messageId: string,
+    at: Date,
+  ): Promise<void> {
+    await this.em.nativeUpdate(
+      InboxRow,
+      { consumerName, messageId },
+      { processedAt: at },
+    );
   }
 }
 
@@ -68,18 +90,25 @@ export class MikroOrmOutboxRepository implements OutboxRepository {
     for (const message of messages) {
       const row = await this.em.findOne(OutboxRow, { id: message.id });
       if (row === null) {
-        throw new Error(`Cannot update outbox message ${message.id}: row not found`);
+        throw new Error(
+          `Cannot update outbox message ${message.id}: row not found`,
+        );
       }
       outboxToRow(message, row);
     }
   }
 
-  async pendingStats(): Promise<{ pendingCount: number; oldestOccurredAt: Date | null }> {
-    const rows = await this.em.getConnection().execute<{ count: number | string; oldest: Date | null }[]>(
-      `select count(*)::int as count, min(occurred_at) as oldest
+  async pendingStats(): Promise<{
+    pendingCount: number;
+    oldestOccurredAt: Date | null;
+  }> {
+    const rows = await this.em
+      .getConnection()
+      .execute<{ count: number | string; oldest: Date | null }[]>(
+        `select count(*)::int as count, min(occurred_at) as oldest
          from outbox_messages
         where published_at is null`,
-    );
+      );
     const row = rows[0];
     return {
       pendingCount: Number(row?.count ?? 0),

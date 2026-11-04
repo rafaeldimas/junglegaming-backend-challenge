@@ -20,7 +20,11 @@ export class SqsQueues {
   ) {}
 
   async ensureReady(): Promise<void> {
-    if (this.mainUrl !== undefined && this.dlqUrl !== undefined && this.eventsUrl !== undefined) {
+    if (
+      this.mainUrl !== undefined &&
+      this.dlqUrl !== undefined &&
+      this.eventsUrl !== undefined
+    ) {
       return;
     }
     this.ensurePromise ??= this.ensure().finally(() => {
@@ -48,7 +52,9 @@ export class SqsQueues {
   private async ensure(): Promise<void> {
     let dlqUrl = await this.client.getQueueUrl(this.env.SQS_DLQ_NAME);
     let mainUrl = await this.client.getQueueUrl(this.env.SQS_QUEUE_NAME);
-    let eventsUrl = await this.client.getQueueUrl(this.env.SQS_EVENTS_QUEUE_NAME);
+    let eventsUrl = await this.client.getQueueUrl(
+      this.env.SQS_EVENTS_QUEUE_NAME,
+    );
 
     if (mainUrl === null || dlqUrl === null || eventsUrl === null) {
       if (!this.env.QUEUE_AUTO_CREATE) {
@@ -69,9 +75,12 @@ export class SqsQueues {
           maxReceiveCount: String(this.env.SQS_MAX_ATTEMPTS),
         }),
       });
-      eventsUrl ??= await this.client.createFifoQueue(this.env.SQS_EVENTS_QUEUE_NAME, {
-        VisibilityTimeout: String(this.env.SQS_VISIBILITY_TIMEOUT_SECONDS),
-      });
+      eventsUrl ??= await this.client.createFifoQueue(
+        this.env.SQS_EVENTS_QUEUE_NAME,
+        {
+          VisibilityTimeout: String(this.env.SQS_VISIBILITY_TIMEOUT_SECONDS),
+        },
+      );
       logger.info(
         {
           queue: this.env.SQS_QUEUE_NAME,

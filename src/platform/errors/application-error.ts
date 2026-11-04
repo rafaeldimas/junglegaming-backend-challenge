@@ -41,13 +41,20 @@ export class WalletAlreadyExistsError extends ApplicationError {
 
 export class WalletNotFoundError extends ApplicationError {
   constructor(walletId: string) {
-    super(`Wallet ${walletId} not found`, 'WALLET_NOT_FOUND', 404, { walletId });
+    super(`Wallet ${walletId} not found`, 'WALLET_NOT_FOUND', 404, {
+      walletId,
+    });
   }
 }
 
 export class TransactionNotFoundError extends ApplicationError {
   constructor(transactionId: string) {
-    super(`Wager transaction ${transactionId} not found`, 'TRANSACTION_NOT_FOUND', 404, { transactionId });
+    super(
+      `Wager transaction ${transactionId} not found`,
+      'TRANSACTION_NOT_FOUND',
+      404,
+      { transactionId },
+    );
   }
 }
 

@@ -40,7 +40,9 @@ export class InsufficientFundsError extends DomainError {
     readonly requested: string,
     readonly currency: string,
   ) {
-    super(`Wallet ${walletId} has insufficient funds: balance ${balance} ${currency}, requested ${requested} ${currency}`);
+    super(
+      `Wallet ${walletId} has insufficient funds: balance ${balance} ${currency}, requested ${requested} ${currency}`,
+    );
   }
 }
 
@@ -60,6 +62,8 @@ export class InvalidTransactionStateError extends DomainError {
     readonly currentStatus: string,
     readonly attemptedTransition: string,
   ) {
-    super(`Transaction ${transactionId} is in terminal status ${currentStatus}; cannot ${attemptedTransition}`);
+    super(
+      `Transaction ${transactionId} is in terminal status ${currentStatus}; cannot ${attemptedTransition}`,
+    );
   }
 }

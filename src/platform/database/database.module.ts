@@ -1,4 +1,10 @@
-import { DynamicModule, Global, Inject, Module, OnApplicationShutdown } from '@nestjs/common';
+import {
+  DynamicModule,
+  Global,
+  Inject,
+  Module,
+  OnApplicationShutdown,
+} from '@nestjs/common';
 import { MikroORM } from '@mikro-orm/postgresql';
 import { loadEnv } from '../../config/env.js';
 import { APP_ENV, MIKRO_ORM } from '../../config/tokens.js';
@@ -23,7 +29,8 @@ export class DatabaseModule implements OnApplicationShutdown {
         {
           provide: MIKRO_ORM,
           inject: [APP_ENV],
-          useFactory: async (env: ReturnType<typeof loadEnv>) => MikroORM.init(createOrmConfig(env)),
+          useFactory: async (env: ReturnType<typeof loadEnv>) =>
+            MikroORM.init(createOrmConfig(env)),
         },
         {
           provide: UNIT_OF_WORK,

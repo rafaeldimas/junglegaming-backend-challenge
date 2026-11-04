@@ -160,7 +160,9 @@ export class Migration20260101000000_Initial extends Migration {
   }
 
   override down(): void {
-    this.addSql(`drop trigger if exists wallet_ledger_entries_immutable on wallet_ledger_entries;`);
+    this.addSql(
+      `drop trigger if exists wallet_ledger_entries_immutable on wallet_ledger_entries;`,
+    );
     this.addSql(`drop function if exists prevent_ledger_entry_mutation();`);
     this.addSql(`drop table if exists outbox_messages;`);
     this.addSql(`drop table if exists inbox_messages;`);

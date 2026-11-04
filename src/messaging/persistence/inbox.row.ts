@@ -18,8 +18,15 @@ export const InboxRowSchema = defineEntity({
     messageId: p.string().fieldName('message_id'),
     consumerName: p.string().fieldName('consumer_name'),
     payloadHash: p.string().length(64).fieldName('payload_hash'),
-    receivedAt: p.datetime().columnType('timestamptz(3)').fieldName('received_at'),
-    processedAt: p.datetime().columnType('timestamptz(3)').nullable().fieldName('processed_at'),
+    receivedAt: p
+      .datetime()
+      .columnType('timestamptz(3)')
+      .fieldName('received_at'),
+    processedAt: p
+      .datetime()
+      .columnType('timestamptz(3)')
+      .nullable()
+      .fieldName('processed_at'),
   },
   uniques: [{ properties: ['consumerName', 'messageId'] }],
 });

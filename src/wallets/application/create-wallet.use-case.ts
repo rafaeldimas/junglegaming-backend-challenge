@@ -1,17 +1,29 @@
 import { Money } from '../../shared/domain/money.js';
 import type { Clock } from '../../shared/domain/clock.js';
 import type { IdGenerator } from '../../shared/domain/id-generator.js';
-import { TransactionContext, UnitOfWork } from '../../platform/database/transaction-context.js';
+import {
+  TransactionContext,
+  UnitOfWork,
+} from '../../platform/database/transaction-context.js';
 import { Wallet } from '../domain/wallet.js';
-import { LedgerDirection, WalletLedgerEntry } from '../domain/wallet-ledger-entry.js';
+import {
+  LedgerDirection,
+  WalletLedgerEntry,
+} from '../domain/wallet-ledger-entry.js';
 import {
   WagerTransaction,
   WagerTransactionKind,
   TransactionOrigin,
 } from '../../wagering/domain/wager-transaction.js';
-import { canonicalWagerPayload, hashWagerPayload } from '../../wagering/domain/canonical-payload.js';
+import {
+  canonicalWagerPayload,
+  hashWagerPayload,
+} from '../../wagering/domain/canonical-payload.js';
 import { OutboxMessage } from '../../messaging/domain/outbox-message.js';
-import { WagerTransactionProcessed, WalletBalanceChanged } from '../../messaging/domain/events.js';
+import {
+  WagerTransactionProcessed,
+  WalletBalanceChanged,
+} from '../../messaging/domain/events.js';
 import { EventContext } from '../../messaging/domain/integration-event.js';
 import { WalletAlreadyExistsError } from '../../platform/errors/application-error.js';
 import { isUniqueViolation } from '../../platform/database/unit-of-work.js';
@@ -36,9 +48,14 @@ export class CreateWalletUseCase {
     private readonly ids: IdGenerator,
   ) {}
 
-  async execute(command: CreateWalletCommand, correlationId: string): Promise<Wallet> {
+  async execute(
+    command: CreateWalletCommand,
+    correlationId: string,
+  ): Promise<Wallet> {
     try {
-      const wallet = await this.uow.execute((ctx) => this.run(ctx, command, correlationId));
+      const wallet = await this.uow.execute((ctx) =>
+        this.run(ctx, command, correlationId),
+      );
       metrics.walletCreated.inc();
       return wallet;
     } catch (error) {
@@ -131,8 +148,12 @@ export class CreateWalletUseCase {
       occurredAt: now,
     });
     await ctx.outbox.insertMany([
-      OutboxMessage.enqueue(WagerTransactionProcessed.from(opening, eventContext())),
-      OutboxMessage.enqueue(WalletBalanceChanged.from(wallet, entry, eventContext())),
+      OutboxMessage.enqueue(
+        WagerTransactionProcessed.from(opening, eventContext()),
+      ),
+      OutboxMessage.enqueue(
+        WalletBalanceChanged.from(wallet, entry, eventContext()),
+      ),
     ]);
 
     return wallet;

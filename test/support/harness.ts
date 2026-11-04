@@ -1,5 +1,8 @@
 import { MikroORM } from '@mikro-orm/postgresql';
-import { PostgreSqlContainer, StartedPostgreSqlContainer } from '@testcontainers/postgresql';
+import {
+  PostgreSqlContainer,
+  StartedPostgreSqlContainer,
+} from '@testcontainers/postgresql';
 import { GenericContainer, StartedTestContainer, Wait } from 'testcontainers';
 import { AppEnv, loadEnv } from '../../src/config/env.js';
 import { createOrmConfig } from '../../src/platform/database/mikro-orm.config.js';
@@ -17,7 +20,10 @@ import {
   ProcessWagerTransactionResult,
 } from '../../src/wagering/application/process-wager-transaction.use-case.js';
 import { WagerTransactionCommand } from '../../src/wagering/application/wager-command.js';
-import { TransactionOrigin, WagerTransactionKind } from '../../src/wagering/domain/wager-transaction.js';
+import {
+  TransactionOrigin,
+  WagerTransactionKind,
+} from '../../src/wagering/domain/wager-transaction.js';
 import { SqsClient } from '../../src/messaging/sqs/sqs.client.js';
 import { SqsQueues } from '../../src/messaging/sqs/sqs-queues.js';
 import { SqsEventPublisher } from '../../src/messaging/sqs/sqs-publisher.js';
@@ -68,7 +74,10 @@ export interface Harness {
   pendingReferenceWorker(): PendingReferenceWorker;
   /** New ORM instance, like a process starting after a crash. */
   newOrm(): Promise<MikroORM>;
-  sql<T = Record<string, unknown>>(query: string, params?: unknown[]): Promise<T[]>;
+  sql<T = Record<string, unknown>>(
+    query: string,
+    params?: unknown[],
+  ): Promise<T[]>;
   reset(): Promise<void>;
   stop(): Promise<void>;
 }
@@ -111,8 +120,10 @@ export async function startHarness(): Promise<Harness> {
   const queues = new SqsQueues(sqs, env);
   await queues.ensureReady();
 
-  const sql = async <T = Record<string, unknown>>(query: string, params: unknown[] = []): Promise<T[]> =>
-    orm.em.fork().getConnection().execute<T[]>(query, params);
+  const sql = async <T = Record<string, unknown>>(
+    query: string,
+    params: unknown[] = [],
+  ): Promise<T[]> => orm.em.fork().getConnection().execute<T[]>(query, params);
 
   const buildInstance = (instanceOrm: MikroORM = orm) => {
     const uow = new MikroOrmUnitOfWork(instanceOrm);
@@ -120,11 +131,23 @@ export async function startHarness(): Promise<Harness> {
     return {
       uow,
       applier,
-      processTransaction: new ProcessWagerTransactionUseCase(uow, applier, clock, ids),
+      processTransaction: new ProcessWagerTransactionUseCase(
+        uow,
+        applier,
+        clock,
+        ids,
+      ),
       createWallet: new CreateWalletUseCase(uow, clock, ids),
       reconcile: new ReconcileWalletUseCase(uow),
-      outboxPublisher: () => new OutboxPublisherWorker(uow, new SqsEventPublisher(sqs, queues), clock, env),
-      pendingReferenceWorker: () => new PendingReferenceWorker(uow, applier, clock, env),
+      outboxPublisher: () =>
+        new OutboxPublisherWorker(
+          uow,
+          new SqsEventPublisher(sqs, queues),
+          clock,
+          env,
+        ),
+      pendingReferenceWorker: () =>
+        new PendingReferenceWorker(uow, applier, clock, env),
     };
   };
 
@@ -183,12 +206,17 @@ export interface SubmitOverrides {
   origin?: TransactionOrigin.Api | TransactionOrigin.Sqs;
 }
 
-export function commandFor(wallet: Wallet, overrides: SubmitOverrides = {}): WagerTransactionCommand {
-  const externalTransactionId = overrides.externalTransactionId ?? `ext-${crypto.randomUUID()}`;
+export function commandFor(
+  wallet: Wallet,
+  overrides: SubmitOverrides = {},
+): WagerTransactionCommand {
+  const externalTransactionId =
+    overrides.externalTransactionId ?? `ext-${crypto.randomUUID()}`;
   return {
     providerId: overrides.providerId ?? 'provider-a',
     externalTransactionId,
-    idempotencyKey: overrides.idempotencyKey ?? `provider-a:${externalTransactionId}`,
+    idempotencyKey:
+      overrides.idempotencyKey ?? `provider-a:${externalTransactionId}`,
     playerId: overrides.playerId ?? wallet.playerId,
     walletId: overrides.walletId ?? wallet.id,
     roundId: overrides.roundId ?? 'round-1',
@@ -202,7 +230,10 @@ export function commandFor(wallet: Wallet, overrides: SubmitOverrides = {}): Wag
 export function submit(
   harness: Harness,
   command: WagerTransactionCommand,
-  overrides: { inbox?: ProcessWagerTransactionOptions['inbox']; origin?: TransactionOrigin.Api | TransactionOrigin.Sqs } = {},
+  overrides: {
+    inbox?: ProcessWagerTransactionOptions['inbox'];
+    origin?: TransactionOrigin.Api | TransactionOrigin.Sqs;
+  } = {},
 ): Promise<ProcessWagerTransactionResult> {
   return harness.processTransaction.execute(command, {
     origin: overrides.origin ?? TransactionOrigin.Api,
@@ -211,7 +242,10 @@ export function submit(
   });
 }
 
-export async function walletRow(harness: Harness, walletId: string): Promise<WalletRow | null> {
+export async function walletRow(
+  harness: Harness,
+  walletId: string,
+): Promise<WalletRow | null> {
   return harness.orm.em.fork().findOne(WalletRow, { id: walletId });
 }
 
@@ -219,7 +253,9 @@ export async function transactionRow(
   harness: Harness,
   transactionId: string,
 ): Promise<WagerTransactionRow | null> {
-  return harness.orm.em.fork().findOne(WagerTransactionRow, { id: transactionId });
+  return harness.orm.em
+    .fork()
+    .findOne(WagerTransactionRow, { id: transactionId });
 }
 
 export async function createWallet(

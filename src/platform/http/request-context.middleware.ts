@@ -10,7 +10,10 @@ const CORRELATION_HEADER = 'x-correlation-id';
 export class RequestContextMiddleware implements NestMiddleware {
   use(req: Request, res: Response, next: NextFunction): void {
     const header = req.header(CORRELATION_HEADER);
-    const correlationId = header !== undefined && header.length > 0 && header.length <= 128 ? header : uuidv7();
+    const correlationId =
+      header !== undefined && header.length > 0 && header.length <= 128
+        ? header
+        : uuidv7();
 
     res.setHeader(CORRELATION_HEADER, correlationId);
 

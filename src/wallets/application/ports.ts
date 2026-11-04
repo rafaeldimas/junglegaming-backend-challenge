@@ -9,7 +9,10 @@ export interface FindWalletOptions {
 
 export interface WalletRepository {
   findById(id: string, options?: FindWalletOptions): Promise<Wallet | null>;
-  findByPlayerAndCurrency(playerId: string, currency: string): Promise<Wallet | null>;
+  findByPlayerAndCurrency(
+    playerId: string,
+    currency: string,
+  ): Promise<Wallet | null>;
   insert(wallet: Wallet): Promise<void>;
   update(wallet: Wallet): Promise<void>;
 }
@@ -32,6 +35,10 @@ export interface LedgerAggregate {
 export interface LedgerRepository {
   insert(entry: WalletLedgerEntry): Promise<void>;
   findByTransactionId(transactionId: string): Promise<WalletLedgerEntry | null>;
-  page(walletId: string, cursor: LedgerCursor | null, limit: number): Promise<LedgerPage>;
+  page(
+    walletId: string,
+    cursor: LedgerCursor | null,
+    limit: number,
+  ): Promise<LedgerPage>;
   aggregate(walletId: string, currency: string): Promise<LedgerAggregate>;
 }

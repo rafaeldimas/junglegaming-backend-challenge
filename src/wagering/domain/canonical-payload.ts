@@ -58,7 +58,8 @@ export function canonicalWagerPayload(input: {
     gameId: input.gameId,
     kind: input.kind,
     money: input.money.toJSON(),
-    referenceExternalTransactionId: input.referenceExternalTransactionId ?? null,
+    referenceExternalTransactionId:
+      input.referenceExternalTransactionId ?? null,
   };
   return stableStringify(payload);
 }

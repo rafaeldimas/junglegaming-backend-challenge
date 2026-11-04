@@ -24,7 +24,10 @@ export class HealthController {
   @Get('health/ready')
   @Public()
   async ready(@Res({ passthrough: true }) response: Response) {
-    const [postgres, sqs] = await Promise.all([this.pingPostgres(), this.pingSqs()]);
+    const [postgres, sqs] = await Promise.all([
+      this.pingPostgres(),
+      this.pingSqs(),
+    ]);
     const ready = postgres && sqs;
     response.status(ready ? 200 : 503);
     return {
