@@ -76,7 +76,9 @@ export class WagerTransactionApplier {
 
     let resolvedReference: WagerTransaction | undefined;
 
-    if (transaction.requiresReference()) {
+    // REFUND/ROLLBACK require a reference; WIN may carry one. Any reference that
+    // is present is resolved and validated with the same rules.
+    if (transaction.referenceExternalTransactionId !== undefined) {
       const reference = await ctx.wagerTransactions.findByProviderExternalId(
         transaction.providerId,
         transaction.referenceExternalTransactionId!,
@@ -188,7 +190,10 @@ export class WagerTransactionApplier {
   }
 
   private validateReference(transaction: WagerTransaction, reference: WagerTransaction): FailureCode | null {
-    if (transaction.kind === WagerTransactionKind.Refund && reference.kind !== WagerTransactionKind.Bet) {
+    if (
+      (transaction.kind === WagerTransactionKind.Refund || transaction.kind === WagerTransactionKind.Win) &&
+      reference.kind !== WagerTransactionKind.Bet
+    ) {
       return FailureCode.InvalidReferenceKind;
     }
     if (transaction.kind === WagerTransactionKind.Rollback && !reference.isRollbackable()) {

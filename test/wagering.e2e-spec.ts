@@ -461,6 +461,54 @@ describe('references', () => {
     expect(counts!.rejected_events).toBeGreaterThanOrEqual(1);
   });
 
+  it('parks a WIN that references a BET that has not arrived yet', async () => {
+    const wallet = await createWallet(h, '100.00');
+    const win = commandFor(wallet, {
+      kind: WagerTransactionKind.Win,
+      money: brl('25.00'),
+      referenceExternalTransactionId: 'external-bet-win',
+    });
+
+    expect((await submit(h, win)).status).toBe(WagerTransactionStatus.PendingReference);
+
+    await submit(h, commandFor(wallet, { externalTransactionId: 'external-bet-win', money: brl('25.00') }));
+    h.clock.advance(6_000);
+    await h.pendingReferenceWorker().tick();
+
+    const [transaction] = await h.sql<{ status: string; reference_transaction_id: string | null }>(
+      'select status, reference_transaction_id from wager_transactions where external_transaction_id = ?',
+      [win.externalTransactionId],
+    );
+    expect(transaction!.status).toBe(WagerTransactionStatus.Processed);
+    expect(transaction!.reference_transaction_id).not.toBeNull();
+    expect((await walletRow(h, wallet.id))!.balance).toBe('100.00');
+    await expectReconciled(wallet.id);
+  });
+
+  it('rejects a WIN whose reference is not a BET', async () => {
+    const wallet = await createWallet(h, '100.00');
+    await submit(
+      h,
+      commandFor(wallet, {
+        kind: WagerTransactionKind.Loss,
+        externalTransactionId: 'external-loss-win',
+        money: brl('10.00'),
+      }),
+    );
+
+    const result = await submit(
+      h,
+      commandFor(wallet, {
+        kind: WagerTransactionKind.Win,
+        money: brl('10.00'),
+        referenceExternalTransactionId: 'external-loss-win',
+      }),
+    );
+
+    expect(result.status).toBe(WagerTransactionStatus.Rejected);
+    expect(result.failureCode).toBe(FailureCode.InvalidReferenceKind);
+  });
+
   it('rejects a REFUND whose amount differs from the reference', async () => {
     const wallet = await createWallet(h, '100.00');
     await submit(h, commandFor(wallet, { externalTransactionId: 'external-bet-2', money: brl('25.00') }));

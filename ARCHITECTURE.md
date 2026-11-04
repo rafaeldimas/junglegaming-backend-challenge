@@ -353,7 +353,8 @@ sequenceDiagram
 
 - The lock is per wallet, acquired inside the same transaction that writes.
 - `LOSS` does not touch the wallet, so it does not take the lock and produces no
-  ledger entry.
+  ledger entry. A `LOSS` with a reference is accepted as provider metadata and
+  does not resolve it.
 - Wallets are independent: parallel processing of different wallets is the
   normal case.
 - `SELECT … FOR UPDATE` on PostgreSQL uses `SKIP LOCKED` only in the outbox
@@ -363,11 +364,15 @@ sequenceDiagram
 
 ## 11. References and out-of-order delivery
 
-`REFUND` and `ROLLBACK` require `referenceExternalTransactionId`. The reference
-is resolved by `(providerId, referenceExternalTransactionId)` and must match the
-same provider, player, wallet, currency, round and amount. `REFUND` references
-only `BET`; `ROLLBACK` references `BET`, `WIN` or `REFUND`; one reference can be
-reversed once per operation kind (partial unique index).
+`REFUND` and `ROLLBACK` require `referenceExternalTransactionId`; `WIN` may
+optionally carry one. Any reference that is present is resolved by
+`(providerId, referenceExternalTransactionId)` and must match the same provider,
+player, wallet, currency, round and amount. `WIN` and `REFUND` reference only
+`BET`; `ROLLBACK` references `BET`, `WIN` or `REFUND`; one reference can be
+reversed once per operation kind (partial unique index). A `WIN` whose reference
+has not arrived yet follows the same PENDING_REFERENCE policy, so an
+out-of-order win is linked when the bet shows up instead of being silently
+credited without a reference.
 
 When the reference is missing (or not yet processed), the transaction is
 persisted as `PENDING_REFERENCE` and the worker retries with exponential
