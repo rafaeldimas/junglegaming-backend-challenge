@@ -14,7 +14,7 @@ Design decisions, trade-offs and diagrams: [`ARCHITECTURE.md`](./ARCHITECTURE.md
 - AWS SQS FIFO via LocalStack 3.8
 - decimal.js for money · UUIDv7 ids
 - pino JSON logs · prom-client metrics
-- Vitest + Testcontainers for unit and integration tests
+- Bun's test runner for unit tests; Vitest for the Testcontainers suite
 
 ## Quick start (Docker Compose)
 
@@ -216,11 +216,14 @@ event. The same policy is used by HTTP and SQS.
 ## Tests
 
 ```bash
-bun run test       # 60 unit tests, no Docker
-bun run test:e2e   # 29 integration/concurrency tests, Docker required
+bun run test       # 69 unit tests with the Bun test runner, no Docker
+bun run test:e2e   # 31 integration/concurrency tests, Docker required
 ```
 
-The e2e suite starts real PostgreSQL and LocalStack containers and covers
+Unit tests run with `bun test` (the mandatory Bun test runner). The e2e suite
+runs under Vitest because Bun 1.4.4 currently crashes while loading
+Testcontainers' `ssh2` native module; the suite still starts real PostgreSQL and
+LocalStack containers and covers
 schema constraints, atomicity, inbox redelivery, the 50-parallel-bet case, the
 80/80 race, three application instances, refunds arriving before their bet,
 retry exhaustion, concurrent outbox publishers, crash recovery and DLQ routing.

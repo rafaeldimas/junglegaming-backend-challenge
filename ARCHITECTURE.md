@@ -119,7 +119,7 @@ unit of work, `http`/`messaging` are adapters, `persistence` implements ports.
 | Logs | **pino** (JSON) | Structured logs with request context and redaction. |
 | Metrics | **prom-client** | `/metrics` in Prometheus format. |
 | Validation | **zod** at the edges | Invalid payloads fail fast with field-level detail; domain rules stay in the domain. |
-| Tests | **Vitest + Testcontainers** | Real PostgreSQL and real SQS; no mocked database or broker. |
+| Tests | **Bun test runner + Testcontainers** | Unit tests run with `bun test`; the Testcontainers e2e suite runs under Vitest because Bun 1.4.4 crashes loading Testcontainers' `ssh2` N-API module. Real PostgreSQL and real SQS, never mocked. |
 
 ### Why pessimistic locking
 
@@ -571,18 +571,22 @@ checks.
 
 ## 18. Testing strategy
 
-Unit (`bun run test`):
+Unit (`bun run test`, executed by Bun's test runner):
 
 - `Money`: scale, serialization, invalid inputs (NaN, Infinity, exponent,
-  whitespace, >2 decimals, negative), immutability, exact accumulation,
-  currency mismatch;
+  whitespace, >2 decimals, negative), the `numeric(20,2)` upper bound,
+  immutability, exact accumulation, currency mismatch;
 - `Wallet`: opening invariants, debit/credit arithmetic, version increment,
   insufficient funds, zero/negative movements, rehydration;
 - `WagerTransaction`: reference requirements, internal-only OPENING, terminal
   transitions, failure codes, `affectsBalance`, rollback direction,
   payload matching;
 - canonical payload: key sorting, scale normalization, absent reference,
-  field-by-field hash sensitivity.
+  field-by-field hash sensitivity;
+- command parsing: mandatory/oversized idempotency key, invalid payloads,
+  external `OPENING`, SQS envelope shape;
+- HTTP filter mapping (404/409/503/500) and transient database error
+  classification.
 
 Integration and concurrency (`bun run test:e2e`, real PostgreSQL and LocalStack
 via Testcontainers):
@@ -599,8 +603,10 @@ via Testcontainers):
 - refund before the bet, retry exhaustion and `REFERENCE_EXPIRED`;
 - amount mismatch and double reversal;
 - outbox atomicity, two publishers racing, publish after a simulated restart;
+- inbox rollback when the financial transaction fails;
 - SQS consumer: valid message processed, redelivery deduplicated, invalid
-  payload and unknown wallet routed to the DLQ;
+  payload and unknown wallet routed to the DLQ, and transient failures
+  redelivered until the attempt limit before the DLQ;
 - ledger cursor pagination;
 - every scenario asserts `wallet.balance == ledger sum` (reconciliation).
 
