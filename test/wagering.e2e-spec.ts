@@ -710,6 +710,31 @@ describe('references', () => {
     expect(result.failureCode).toBe(FailureCode.InvalidReferenceKind);
   });
 
+  it('rejects with REFERENCE_NOT_FOUND when attempts run out before the TTL', async () => {
+    const wallet = await createWallet(h, '100.00');
+    const refund = commandFor(wallet, {
+      kind: WagerTransactionKind.Refund,
+      money: brl('25.00'),
+      referenceExternalTransactionId: 'external-never-2',
+    });
+    expect((await submit(h, refund)).status).toBe(
+      WagerTransactionStatus.PendingReference,
+    );
+
+    h.clock.advance(6_000);
+    await h.pendingReferenceWorker().tick();
+    h.clock.advance(16_000);
+    await h.pendingReferenceWorker().tick();
+
+    const [row] = await h.sql<{ status: string; failure_code: string }>(
+      'select status, failure_code from wager_transactions where external_transaction_id = ?',
+      [refund.externalTransactionId],
+    );
+    expect(row!.status).toBe(WagerTransactionStatus.Rejected);
+    expect(row!.failure_code).toBe(FailureCode.ReferenceNotFound);
+    expect((await walletRow(h, wallet.id))!.balance).toBe('100.00');
+  });
+
   it('rejects a REFUND whose amount differs from the reference', async () => {
     const wallet = await createWallet(h, '100.00');
     await submit(
@@ -983,6 +1008,7 @@ describe('transactional outbox', () => {
       'select count(*)::int as pending from outbox_messages where published_at is null',
     );
     expect(counts!.pending).toBe(0);
+    await expectReconciled(wallet.id);
   });
 });
 

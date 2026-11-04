@@ -608,6 +608,8 @@ via Testcontainers):
   payload and unknown wallet routed to the DLQ, and transient failures
   redelivered until the attempt limit before the DLQ;
 - ledger cursor pagination;
+- HTTP API through Nest + supertest: status mapping (201/200/202/400/404/409/422),
+  pagination, reconciliation, health and the required metric families;
 - every scenario asserts `wallet.balance == ledger sum` (reconciliation).
 
 The Docker Compose stack was also validated manually with three app replicas
