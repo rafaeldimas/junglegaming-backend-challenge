@@ -1,0 +1,4 @@
+[test]
+# Stubs Testcontainers' ssh2 native dependency (crashes Bun 1.4.4) and keeps
+# the test output readable.
+preload = ["./test/preload.ts"]

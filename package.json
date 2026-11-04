@@ -18,8 +18,7 @@
     "test": "bun test src/",
     "test:watch": "bun test --watch src/",
     "test:cov": "bun test --coverage src/",
-    "test:debug": "vitest --inspect-brk --no-file-parallelism",
-    "test:e2e": "vitest run --config ./vitest.config.e2e.ts",
+    "test:e2e": "bun test --timeout 300000 ./test/wagering.e2e-spec.ts",
     "migration:up": "bun run src/database/migrate.ts up",
     "migration:down": "bun run src/database/migrate.ts down",
     "migration:list": "bun run src/database/migrate.ts list",
@@ -48,10 +47,10 @@
     "@nestjs/schematics": "^12.0.0",
     "@nestjs/testing": "^12.0.1",
     "@testcontainers/postgresql": "^12.2.1",
+    "@types/bun": "^1.4.4",
     "@types/express": "^5.0.0",
     "@types/node": "^24.0.0",
     "@types/supertest": "^7.0.0",
-    "@vitest/coverage-v8": "^4.1.2",
     "oxlint": "^1.58.0",
     "oxlint-tsgolint": "^7.0.2001",
     "pino-pretty": "^13.2.0",
@@ -60,7 +59,6 @@
     "supertest": "^7.0.0",
     "testcontainers": "^12.2.1",
     "typescript": "^6.0.2",
-    "vite": "^8.0.0",
-    "vitest": "^4.1.2"
+    "vite": "^8.0.0"
   }
 }

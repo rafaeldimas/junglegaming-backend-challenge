@@ -29,6 +29,10 @@ import { AppModule } from '../src/app.module.js';
 import { MikroOrmUnitOfWork } from '../src/platform/database/unit-of-work.js';
 import { OutboxPublisherWorker } from '../src/messaging/outbox/outbox-publisher.worker.js';
 import { SqsEventPublisher } from '../src/messaging/sqs/sqs-publisher.js';
+// Bun's `expect().rejects` assertions are promises at runtime, but the bundled
+// type definitions expose the matcher as void; awaiting them is intentional.
+// oxlint-disable typescript/await-thenable
+
 import {
   createWallet,
   brl,
@@ -351,9 +355,10 @@ describe('idempotency', () => {
     const command = commandFor(wallet);
     await submit(h, command);
 
-    await expect(
+    const error = await failureOf(
       submit(h, { ...command, idempotencyKey: 'provider-a:another-key' }),
-    ).rejects.toMatchObject({ code: 'EXTERNAL_TRANSACTION_CONFLICT' });
+    );
+    expect(error).toMatchObject({ code: 'EXTERNAL_TRANSACTION_CONFLICT' });
   });
 });
 
@@ -402,7 +407,7 @@ describe('inbox deduplication', () => {
       walletId: crypto.randomUUID(),
     };
 
-    await expect(
+    const error = await failureOf(
       submit(h, command, {
         origin: TransactionOrigin.Sqs,
         inbox: {
@@ -411,7 +416,8 @@ describe('inbox deduplication', () => {
           receivedAt: h.clock.now(),
         },
       }),
-    ).rejects.toBeInstanceOf(WalletNotFoundError);
+    );
+    expect(error).toBeInstanceOf(WalletNotFoundError);
 
     const [counts] = await h.sql<{ inbox: number }>(
       'select count(*)::int as inbox from inbox_messages',
@@ -782,7 +788,7 @@ describe('references', () => {
   it('rejects a reference that points to the transaction itself as invalid input', async () => {
     const wallet = await createWallet(h, '100.00');
 
-    await expect(
+    const error = await failureOf(
       submit(
         h,
         commandFor(wallet, {
@@ -792,7 +798,8 @@ describe('references', () => {
           referenceExternalTransactionId: 'self-reference',
         }),
       ),
-    ).rejects.toBeInstanceOf(InvalidTransactionStateError);
+    );
+    expect(error).toBeInstanceOf(InvalidTransactionStateError);
 
     expect((await walletRow(h, wallet.id))!.balance).toBe('100.00');
     const [counts] = await h.sql<{ count: number }>(
@@ -1386,6 +1393,14 @@ describe('reconciliation', () => {
     await expectReconciled(wallet.id);
   });
 });
+
+/** Resolves to the rejection reason, so assertions do not depend on a promise API. */
+async function failureOf<T>(promise: Promise<T>): Promise<unknown> {
+  return promise.then(
+    () => null,
+    (reason: unknown) => reason,
+  );
+}
 
 function wait(ms: number): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, ms));
