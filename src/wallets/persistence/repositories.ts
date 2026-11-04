@@ -6,6 +6,7 @@ import {
   LedgerRepository,
   WalletRepository,
 } from '../application/ports.js';
+import { rawQuery } from '../../platform/database/raw-query.js';
 import { Wallet } from '../domain/wallet.js';
 import {
   LedgerDirection,
@@ -99,7 +100,8 @@ export class MikroOrmLedgerRepository implements LedgerRepository {
     }
     params.push(limit + 1);
 
-    const rows = await this.em.getConnection().execute<LedgerRowJoin[]>(
+    const rows = await rawQuery<LedgerRowJoin>(
+      this.em,
       `select id, wallet_id, transaction_id, direction, amount::text as amount, currency,
               balance_before::text as balance_before, balance_after::text as balance_after, created_at
          from wallet_ledger_entries

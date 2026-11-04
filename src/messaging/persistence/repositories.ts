@@ -2,6 +2,7 @@ import { EntityManager, LockMode } from '@mikro-orm/postgresql';
 import { InboxRepository, OutboxRepository } from '../application/ports.js';
 import { InboxMessage } from '../domain/inbox-message.js';
 import { OutboxMessage } from '../domain/outbox-message.js';
+import { rawQuery } from '../../platform/database/raw-query.js';
 import { InboxRow, InboxRowSchema } from './inbox.row.js';
 import {
   OutboxRow,
@@ -14,7 +15,8 @@ export class MikroOrmInboxRepository implements InboxRepository {
   constructor(private readonly em: EntityManager) {}
 
   async tryInsert(message: InboxMessage): Promise<boolean> {
-    const rows = await this.em.getConnection().execute<{ id: string }[]>(
+    const rows = await rawQuery<{ id: string }>(
+      this.em,
       `insert into inbox_messages (id, message_id, consumer_name, payload_hash, received_at)
        values (?, ?, ?, ?, ?)
        on conflict (consumer_name, message_id) do nothing

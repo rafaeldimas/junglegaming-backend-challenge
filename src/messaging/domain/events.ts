@@ -6,7 +6,6 @@ import {
 import { Wallet } from '../../wallets/domain/wallet.js';
 import { FailureCode } from '../../wagering/domain/failure-code.js';
 import {
-  TransactionOrigin,
   WagerTransaction,
   WagerTransactionKind,
   WagerTransactionStatus,
@@ -184,7 +183,3 @@ export type WageringIntegrationEvent =
   | WagerTransactionRejected
   | WalletBalanceChanged
   | WagerTransactionPendingReference;
-
-export function isInternalOrigin(origin: TransactionOrigin): boolean {
-  return origin === TransactionOrigin.Internal;
-}
