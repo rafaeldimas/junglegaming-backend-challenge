@@ -1,60 +1,61 @@
 # Distributed Wagering Processor
 
-A NestJS service that processes wagering operations from multiple game
-providers against player wallets, with exact money handling, persistent
-idempotency, a per-wallet concurrency guarantee, a transactional outbox and
-at-least-once SQS consumption.
+Serviço NestJS que processa operações de apostas de múltiplos provedores sobre
+wallets de jogadores, com dinheiro exato, idempotência persistente, garantia de
+concorrência por wallet, transactional outbox e consumo SQS at-least-once.
 
-Design decisions, trade-offs and diagrams: [`ARCHITECTURE.md`](./ARCHITECTURE.md).
+As decisões de arquitetura, trade-offs e limitações estão em
+[`ARCHITECTURE.md`](./ARCHITECTURE.md).
 
 ## Stack
 
 - Bun 1.x · TypeScript (strict) · NestJS 12
-- PostgreSQL 16 + MikroORM 7 (versioned, reversible migrations)
+- PostgreSQL 16 + MikroORM 7 (migrations versionadas e reversíveis)
 - AWS SQS FIFO via LocalStack 3.8
-- decimal.js for money · UUIDv7 ids
-- pino JSON logs · prom-client metrics
-- Bun's test runner for unit tests; Vitest for the Testcontainers suite
+- decimal.js para dinheiro · ids UUIDv7
+- logs JSON com pino · métricas com prom-client
+- runner de testes do Bun + Testcontainers (PostgreSQL e SQS reais)
 
-## Quick start (Docker Compose)
+## Início rápido (Docker Compose)
 
-Requires Docker with Compose v2.
+Requer Docker com Compose v2.
 
 ```bash
 docker compose up --build
 ```
 
-This starts PostgreSQL, LocalStack (queues and DLQ pre-created), runs the
-migrations, then starts the API behind nginx.
+Isso sobe PostgreSQL, LocalStack (com as filas e a DLQ já criadas), executa as
+migrations e inicia a API atrás do nginx.
 
 - API: <http://localhost:8080>
 - Health: <http://localhost:8080/health/ready>
-- Metrics: <http://localhost:8080/metrics>
+- Métricas: <http://localhost:8080/metrics>
 - LocalStack: <http://localhost:4566>
 
-To run the multi-instance scenario:
+Para o cenário com múltiplas instâncias:
 
 ```bash
 docker compose up -d --build --scale app=3
 ```
 
-The app container publishes no host port on purpose; nginx resolves `app` on
-every request through Docker DNS, so requests are spread across the replicas.
+O container da aplicação não publica porta no host de propósito; o nginx resolve
+`app` a cada requisição via DNS do Docker, distribuindo as chamadas entre as
+réplicas.
 
-Stop and remove volumes:
+Para parar e remover os volumes:
 
 ```bash
 docker compose down -v
 ```
 
-## Local development
+## Desenvolvimento local
 
 ```bash
 bun install
 cp .env.example .env
 ```
 
-Start PostgreSQL and LocalStack (or use your own):
+Suba PostgreSQL e LocalStack (ou use os seus):
 
 ```bash
 docker run -d --name jungle-pg \
@@ -65,40 +66,40 @@ docker run -d --name jungle-localstack \
   -e SERVICES=sqs -p 4566:4566 localstack/localstack:3.8
 ```
 
-Apply the schema and start the app:
+Aplique o schema e inicie a aplicação:
 
 ```bash
 bun run migration:up
 bun run start:dev
 ```
 
-The service creates the FIFO queues at boot when they are missing
+A aplicação cria as filas FIFO no boot quando elas não existem
 (`QUEUE_AUTO_CREATE=true`).
 
-## Commands
+## Comandos
 
-| Command | Description |
+| Comando | Descrição |
 |---|---|
-| `bun run start:dev` | watch mode |
-| `bun run start` | start once |
-| `bun run build` | compile to `dist/` |
-| `bun run start:prod` | run the compiled app with Bun |
-| `bun run migration:up` | apply pending migrations |
-| `bun run migration:down` | revert the last migration |
-| `bun run migration:list` | list pending migrations |
-| `bun run test` | unit tests |
-| `bun run test:e2e` | integration/concurrency tests (Docker required) |
-| `bun run test:all` | unit + e2e |
-| `bun run test:load` | optional load experiment against a running deployment |
+| `bun run start:dev` | modo watch |
+| `bun run start` | inicia uma vez |
+| `bun run build` | compila para `dist/` |
+| `bun run start:prod` | executa o build com Bun |
+| `bun run migration:up` | aplica migrations pendentes |
+| `bun run migration:down` | reverte a última migration |
+| `bun run migration:list` | lista migrations pendentes |
+| `bun run test` | testes unitários |
+| `bun run test:e2e` | testes de integração/concorrência (requer Docker) |
+| `bun run test:all` | unitários + e2e |
+| `bun run test:load` | experimento de carga opcional contra uma implantação em execução |
 | `bun run lint` | oxlint (type-aware) |
 | `bun run format` | prettier |
 
-Configuration is validated at boot (see `.env.example`); invalid values fail
-fast with a readable message.
+A configuração é validada no boot (veja `.env.example`); valores inválidos
+falham rápido com uma mensagem legível.
 
 ## API
 
-### Create a wallet
+### Criar wallet
 
 ```bash
 curl -X POST http://localhost:8080/wallets \
@@ -109,11 +110,11 @@ curl -X POST http://localhost:8080/wallets \
   }'
 ```
 
-The initial balance, when greater than zero, creates an internal `OPENING`
-transaction and its ledger entry in the same SQL transaction. Creating a second
-wallet for the same `playerId + currency` returns `409`.
+O saldo inicial, quando maior que zero, cria uma transação interna `OPENING` e o
+lançamento `CREDIT` correspondente na mesma transação SQL. Criar uma segunda
+wallet para o mesmo `playerId + currency` retorna `409`.
 
-### Submit a wager transaction
+### Submeter uma transação
 
 ```bash
 curl -X POST http://localhost:8080/wagering/transactions \
@@ -131,11 +132,11 @@ curl -X POST http://localhost:8080/wagering/transactions \
   }'
 ```
 
-Repeating the request returns the original result with
-`"idempotentReplay": true`. Reusing the key with a different payload returns
+Repetir a requisição retorna o resultado original com
+`"idempotentReplay": true`. Reutilizar a chave com payload diferente retorna
 `409 IDEMPOTENCY_CONFLICT`.
 
-### Queries
+### Consultas
 
 ```bash
 curl http://localhost:8080/wallets/<wallet-id>
@@ -145,29 +146,29 @@ curl http://localhost:8080/providers/provider-a/wagering/transactions/transactio
 curl -X POST http://localhost:8080/wallets/<wallet-id>/reconciliation
 ```
 
-The ledger cursor is opaque and stable (`created_at, id`); pass the returned
-`nextCursor` to fetch the next page.
+O cursor do ledger é opaco e estável (`created_at, id`); use o `nextCursor`
+retornado para buscar a próxima página.
 
-### Status codes
+### Códigos de status
 
-| Code | Meaning |
+| Código | Significado |
 |---|---|
-| `201` | processed |
-| `200` | idempotent replay / successful query |
-| `202` | accepted, waiting for a reference (`PENDING_REFERENCE`) |
-| `400` | invalid payload |
-| `404` | wallet or transaction not found |
-| `409` | idempotency, external id or wallet conflict |
-| `422` | business rejection (body has `failureCode`) |
-| `503` | transient infrastructure failure |
+| `201` | processada |
+| `200` | replay idempotente / consulta bem-sucedida |
+| `202` | aceita, aguardando referência (`PENDING_REFERENCE`) |
+| `400` | payload inválido |
+| `404` | wallet ou transação não encontrada |
+| `409` | conflito de idempotência, id externo ou wallet duplicada |
+| `422` | rejeição de negócio (o corpo tem `failureCode`) |
+| `503` | falha transitória de infraestrutura |
 
-Business rejections are persisted with a machine-readable `failureCode`; the
-full table is in [`ARCHITECTURE.md`](./ARCHITECTURE.md#15-failure-taxonomy).
+Rejeições de negócio são persistidas com um `failureCode` legível por máquina; a
+tabela completa está em [`ARCHITECTURE.md`](./ARCHITECTURE.md) (seção 15).
 
 ## SQS
 
-The consumer reads `wager-transactions.fifo`; permanent failures go to
-`wager-transactions-dlq.fifo`. Outbound integration events are published to
+O consumidor lê `wager-transactions.fifo`; falhas permanentes vão para
+`wager-transactions-dlq.fifo`. Eventos de integração de saída são publicados em
 `wager-events.fifo`.
 
 ```json
@@ -189,7 +190,7 @@ The consumer reads `wager-transactions.fifo`; permanent failures go to
 }
 ```
 
-Send a message with the AWS CLI against LocalStack:
+Enviar uma mensagem com a AWS CLI contra o LocalStack:
 
 ```bash
 aws --endpoint-url=http://localhost:4566 sqs send-message \
@@ -199,105 +200,125 @@ aws --endpoint-url=http://localhost:4566 sqs send-message \
   --message-body '{"messageId":"msg-123","type":"WagerTransactionRequested","occurredAt":"2026-07-29T15:00:00.000Z","data":{...}}'
 ```
 
-Events published by the outbox: `WagerTransactionProcessed`,
-`WagerTransactionRejected`, `WalletBalanceChanged` and
-`WagerTransactionPendingReference`. Each envelope carries `eventId`,
+Eventos publicados pela outbox: `WagerTransactionProcessed`,
+`WagerTransactionRejected`, `WalletBalanceChanged` e
+`WagerTransactionPendingReference`. Cada envelope carrega `eventId`,
 `eventType`, `aggregateId`, `correlationId`, `causationId?`, `occurredAt`,
-`version` and `data`; consumers must deduplicate by `eventId`.
+`version` e `data`; consumidores devem deduplicar por `eventId`.
 
-## Out-of-order references
+## Referências fora de ordem
 
-`REFUND` and `ROLLBACK` sent before their reference are accepted (`202`) and
-stored as `PENDING_REFERENCE`. A scheduled worker retries after 5s, 15s, 45s,
-2m and 5m, up to 5 attempts or a 15-minute TTL, then rejects with
-`REFERENCE_NOT_FOUND` / `REFERENCE_EXPIRED` and publishes the corresponding
-event. The same policy is used by HTTP and SQS.
+`REFUND` e `ROLLBACK` enviados antes da referência são aceitos (`202`) e
+persistidos como `PENDING_REFERENCE`. Um worker agendado tenta novamente após
+5s, 15s, 45s, 2m e 5m, por até 5 tentativas ou 15 minutos de TTL; depois rejeita
+com `REFERENCE_NOT_FOUND` / `REFERENCE_EXPIRED` e publica o evento
+correspondente. A mesma política vale para HTTP e SQS.
 
-## Tests
+## Testes
 
 ```bash
-bun run test       # 78 unit tests with the Bun test runner, no Docker
-bun run test:e2e   # 39 integration/concurrency tests, Docker required
+bun run test       # 78 testes unitários com o runner do Bun, sem Docker
+bun run test:e2e   # 39 testes de integração/concorrência, requer Docker
 ```
 
-Unit tests run with `bun test` (the mandatory Bun test runner). The e2e suite
-runs under Vitest because Bun 1.4.4 currently crashes while loading
-Testcontainers' `ssh2` native module; the suite still starts real PostgreSQL and
-LocalStack containers and covers
-schema constraints, atomicity, inbox redelivery, the 50-parallel-bet case, the
-80/80 race, three application instances, refunds arriving before their bet,
-retry exhaustion, concurrent outbox publishers, crash recovery and DLQ routing.
-Every scenario asserts `wallet.balance == ledger sum`.
+As duas suítes rodam com `bun test`. Um preload de teste (`test/preload.ts`)
+substitui o módulo nativo `ssh2` do Testcontainers — o Bun 1.4.4 quebra ao
+carregá-lo — e silencia o logger. O e2e sobe PostgreSQL e LocalStack reais e
+cobre constraints do schema, atomicidade, redelivery do inbox, o caso das 50
+apostas em paralelo, a corrida 80/80, três instâncias, refund antes da aposta,
+esgotamento de retry, publishers concorrentes, recuperação após restart, DLQ e
+a API HTTP. Todo cenário relevante verifica `wallet.balance == soma do ledger`.
 
-## Load experiment (optional)
+## Experimento de carga (opcional)
 
-`bun run test:load` drives a mixed workload against a running deployment and
-prints throughput, p50/p95/p99, status distribution and a final reconciliation
-of every wallet. It is a correctness/observability experiment, not a benchmark.
+`bun run test:load` dispara uma carga mista contra uma implantação em execução e
+imprime throughput, p50/p95/p99, distribuição de status e uma reconciliação
+final de todas as wallets. É um experimento de correção/observabilidade, não um
+benchmark.
 
 ```bash
 docker compose up -d --build --scale app=3
 CONCURRENCY=32 DURATION_SECONDS=15 WALLETS=20 bun run test:load
 ```
 
-### Environment and methodology
+### Ambiente e metodologia
 
-- local Linux machine, Docker Compose: 3 app replicas (Bun 1.4.4 alpine) behind
-  nginx, PostgreSQL 16, LocalStack 3.8 (SQS), all on the same host;
-- 20 wallets with `1000.00 BRL`, `1.00 BRL` bets, 32 concurrent clients for
-  15 seconds, 10% of requests replaying an already-known idempotency key;
-- latency measured client-side per request; `422`/`409` counted separately from
-  errors (`5xx` and network failures); outbox lag read from PostgreSQL and
-  `/metrics` (per-instance metrics, so the DB query is the aggregate view).
+- máquina Linux local, Docker Compose: 3 réplicas da aplicação (Bun 1.4.4
+  alpine) atrás do nginx, PostgreSQL 16 e LocalStack 3.8 (SQS), tudo no mesmo
+  host;
+- 20 wallets com `1000.00 BRL`, apostas de `1.00 BRL`, 32 clientes concorrentes
+  por 15 segundos, 10% das requisições repetindo uma chave de idempotência já
+  conhecida;
+- latência medida no cliente por requisição; `422`/`409` contados separadamente
+  de erros (`5xx` e falhas de rede); outbox lag lido do PostgreSQL e de
+  `/metrics` (as métricas são por instância, então a consulta ao banco é a visão
+  agregada).
 
-### Result of the recorded run
+### Resultado da execução registrada
 
-| Metric | Value |
+| Métrica | Valor |
 |---|---|
-| Requests | 3,878 |
-| Throughput | 256.8 req/s |
-| p50 / p95 / p99 | 113.8 ms / 260.8 ms / 332.5 ms |
-| Error rate | 0.00% |
-| Conflicts (`409`) | 0 |
-| Business rejections (`422`) | 0 |
-| Processed / replayed | 3,478 / 400 |
-| Reconciliation | 20/20 wallets consistent |
+| Requisições | 3.878 |
+| Throughput | 256,8 req/s |
+| p50 / p95 / p99 | 113,8 ms / 260,8 ms / 332,5 ms |
+| Taxa de erro | 0,00% |
+| Conflitos (`409`) | 0 |
+| Rejeições de negócio (`422`) | 0 |
+| Processadas / replays | 3.478 / 400 |
+| Reconciliação | 20/20 wallets consistentes |
 
-Outbox: the burst produces about two events per transaction (~500 events/s),
-which is more than LocalStack can absorb. At the end of the run ~1,982 events
-were still pending with a lag of ~9 s; the backlog drained to **0 pending /
-0 s lag within 30 seconds** after the load stopped. The publisher is tuned with
-`OUTBOX_BATCH_SIZE=200`, `OUTBOX_POLL_INTERVAL_MS=100` and
-`OUTBOX_PUBLISH_CONCURRENCY=8` (per-aggregate ordering preserved, different
-aggregates published concurrently). Raising the concurrency to 16 did not
-improve the result, which points to the local broker rather than the app as the
-bottleneck. Numbers are indicative of this environment and are not a production
-capacity claim.
+Outbox: o burst produz cerca de dois eventos por transação (~500 eventos/s),
+mais do que o LocalStack consegue absorver. Ao final da execução havia ~1.982
+eventos pendentes com lag de ~9 s; o backlog drenou para **0 pendentes / 0 s de
+lag em 30 segundos** após o fim da carga. O publisher está ajustado com
+`OUTBOX_BATCH_SIZE=200`, `OUTBOX_POLL_INTERVAL_MS=100` e
+`OUTBOX_PUBLISH_CONCURRENCY=8` (ordem preservada por agregado, agregados
+diferentes publicados em paralelo). Aumentar a concorrência para 16 não
+melhorou o resultado, o que aponta o broker local — e não a aplicação — como
+gargalo. Os números são indicativos deste ambiente e não são uma promessa de
+capacidade em produção.
 
-## Project layout
+## Estrutura do projeto
 
 ```
 src/
-  auth/         no-op AuthGuard + ProviderIdentityPort (extension point)
-  config/       env validation, DI tokens
-  database/     migration CLI
-  health/       liveness, readiness, metrics
-  messaging/    inbox/outbox, SQS client, publisher, consumer, workers
-  migrations/   initial reversible migration
-  platform/     unit of work, MikroORM config, HTTP filter, logging, metrics
-  shared/       Money, clock, ids, domain errors
-  wagering/     wager domain, use cases, persistence, controller
-  wallets/      wallet domain, use cases, persistence, controller
-scripts/        optional load experiment
-test/           Testcontainers harness and e2e suite
-docker/         LocalStack init script, nginx config
+  auth/         AuthGuard no-op + ProviderIdentityPort (ponto de extensão)
+  config/       validação de env, tokens de DI
+  database/     CLI de migrations
+  health/       liveness, readiness, métricas
+  messaging/    inbox/outbox, cliente SQS, publisher, consumer, workers
+  migrations/   migration inicial reversível
+  platform/     unit of work, configuração MikroORM, filtro HTTP, logs, métricas
+  shared/       Money, clock, ids, erros de domínio
+  wagering/     domínio, casos de uso, persistência e controller de apostas
+  wallets/      domínio, casos de uso, persistência e controller de wallets
+scripts/        experimento de carga opcional
+test/           harness com Testcontainers + suíte e2e
+docker/         bootstrap das filas no LocalStack, configuração do nginx
 ```
 
-## Notes
+## Por que os imports usam a extensão `.js`?
 
-- Authentication is intentionally not implemented; the decision, the Keycloak
-  design that would be adopted and the code extension point are documented in
-  [`ARCHITECTURE.md`](./ARCHITECTURE.md#17-authentication--decision-and-extension-point).
-- Money is always a decimal string with scale 2; `number` is never used for
-  monetary values.
-- The model is multi-currency, but this delivery accepts only `BRL` at the edge.
+O projeto é ESM (`"type": "module"` no `package.json`) e o TypeScript compila com
+`module`/`moduleResolution: nodenext`. Nesse modo, o Node exige **extensão
+explícita** em imports relativos: o arquivo emitido é `dist/foo.js`, então o
+import no código-fonte precisa apontar para `./foo.js` mesmo que o arquivo seja
+`foo.ts`. O TypeScript resolve `./foo.js` para `foo.ts` na compilação e mantém o
+caminho no output — é o padrão recomendado para ESM + Node, e também funciona no
+Bun.
+
+Remover as extensões exigiria mudar para CommonJS (`module: commonjs`,
+`"type": "commonjs"`) ou para um bundler. Isso foi descartado porque:
+`uuid` v14 é ESM-only, o runtime alvo é Bun/Node ESM e o modo `nodenext` também
+verifica corretamente as condições de exportação dos pacotes. Ou seja, a
+extensão `.js` é intencional e não um resquício; o código compilado roda tanto
+com Bun quanto com Node.
+
+## Observações
+
+- A autenticação não foi implementada; a decisão, o desenho com Keycloak que
+  seria adotado e o ponto de extensão no código estão em
+  [`ARCHITECTURE.md`](./ARCHITECTURE.md) (seção 17).
+- Dinheiro é sempre string decimal com escala 2; `number` nunca é usado para
+  valores monetários.
+- O modelo é multi-moeda, mas esta entrega aceita apenas `BRL` na borda.
