@@ -216,8 +216,8 @@ event. The same policy is used by HTTP and SQS.
 ## Tests
 
 ```bash
-bun run test       # 52 unit tests, no Docker
-bun run test:e2e   # 24 integration/concurrency tests, Docker required
+bun run test       # 60 unit tests, no Docker
+bun run test:e2e   # 29 integration/concurrency tests, Docker required
 ```
 
 The e2e suite starts real PostgreSQL and LocalStack containers and covers
