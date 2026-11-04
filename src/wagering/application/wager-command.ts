@@ -6,6 +6,8 @@ import { WagerTransactionKind } from '../domain/wager-transaction.js';
 
 const UUID_PATTERN =
   /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+/** Matches the persisted column, so an oversized key is a 400, not a 500. */
+const IDEMPOTENCY_KEY_MAX_LENGTH = 191;
 
 const moneySchema = z
   .object({
@@ -80,6 +82,11 @@ export function parseHttpWagerCommand(
 ): WagerTransactionCommand {
   if (idempotencyKey === undefined || idempotencyKey.trim().length === 0) {
     throw new InvalidPayloadError('The Idempotency-Key header is required');
+  }
+  if (idempotencyKey.length > IDEMPOTENCY_KEY_MAX_LENGTH) {
+    throw new InvalidPayloadError(
+      `The Idempotency-Key header must be at most ${IDEMPOTENCY_KEY_MAX_LENGTH} characters`,
+    );
   }
   const parsed = httpCommandSchema.safeParse(body);
   if (!parsed.success) {

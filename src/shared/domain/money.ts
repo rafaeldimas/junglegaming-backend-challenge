@@ -19,6 +19,12 @@ const DecimalMoney = Decimal.clone({
 /** Non-negative decimal with at most two fraction digits, no exponent, no sign. */
 const AMOUNT_PATTERN = /^\d+(?:\.\d{1,2})?$/;
 const CURRENCY_PATTERN = /^[A-Z]{3}$/;
+/**
+ * Upper bound imposed by `numeric(20,2)` in the database (18 integer digits).
+ * Rejecting it in the domain keeps an oversized amount a validation error
+ * instead of a persistence error.
+ */
+const MAX_AMOUNT = new DecimalMoney('999999999999999999.99');
 
 /**
  * Immutable value object for monetary amounts.
@@ -76,6 +82,11 @@ export class Money {
         `Invalid money amount "${amount}": must be finite`,
       );
     }
+    if (value.greaterThan(MAX_AMOUNT)) {
+      throw new InvalidMoneyError(
+        `Invalid money amount "${amount}": exceeds the maximum supported amount`,
+      );
+    }
 
     return new Money(value, currency);
   }
@@ -93,6 +104,11 @@ export class Money {
   private static fromDecimal(value: Decimal, currency: string): Money {
     if (!value.isFinite()) {
       throw new InvalidMoneyError(`Invalid money result: ${value.toString()}`);
+    }
+    if (value.abs().greaterThan(MAX_AMOUNT)) {
+      throw new InvalidMoneyError(
+        `Money result ${value.toString()} exceeds the maximum supported amount`,
+      );
     }
     return new Money(value, currency);
   }

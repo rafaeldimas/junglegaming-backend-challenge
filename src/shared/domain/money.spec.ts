@@ -39,6 +39,23 @@ describe('Money', () => {
       );
     });
 
+    it('accepts the numeric(20,2) upper bound and rejects amounts above it', () => {
+      expect(
+        Money.from({
+          amount: '999999999999999999.99',
+          currency: 'BRL',
+        }).toJSON().amount,
+      ).toBe('999999999999999999.99');
+      expect(() =>
+        Money.from({ amount: '1000000000000000000.00', currency: 'BRL' }),
+      ).toThrow(InvalidMoneyError);
+      expect(() =>
+        Money.from({ amount: '999999999999999999.99', currency: 'BRL' }).add(
+          Money.from({ amount: '0.01', currency: 'BRL' }),
+        ),
+      ).toThrow(InvalidMoneyError);
+    });
+
     it('rejects non-string amounts and unknown currencies', () => {
       expect(() =>
         Money.from({ amount: 10 as unknown as string, currency: 'BRL' }),
