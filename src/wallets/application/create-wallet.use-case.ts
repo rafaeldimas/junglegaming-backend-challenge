@@ -1,6 +1,6 @@
 import { Money } from '../../shared/domain/money.js';
-import { CLOCK, Clock } from '../../shared/domain/clock.js';
-import { ID_GENERATOR, IdGenerator } from '../../shared/domain/id-generator.js';
+import type { Clock } from '../../shared/domain/clock.js';
+import type { IdGenerator } from '../../shared/domain/id-generator.js';
 import { TransactionContext, UnitOfWork } from '../../platform/database/transaction-context.js';
 import { Wallet } from '../domain/wallet.js';
 import { LedgerDirection, WalletLedgerEntry } from '../domain/wallet-ledger-entry.js';

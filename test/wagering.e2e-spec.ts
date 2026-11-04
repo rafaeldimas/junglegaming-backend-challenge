@@ -354,7 +354,7 @@ describe('concurrency', () => {
       submit(h, commandFor(wallet, { money: brl('80.00') })),
     ]);
 
-    expect(results.map((result) => result.status).sort()).toEqual([
+    expect(results.map((result) => result.status).sort((a, b) => a.localeCompare(b))).toEqual([
       WagerTransactionStatus.Processed,
       WagerTransactionStatus.Rejected,
     ]);
@@ -511,7 +511,7 @@ describe('transactional outbox', () => {
     await h.outboxPublisher().tick();
 
     const published = await drainQueue(h.env.SQS_EVENTS_QUEUE_NAME);
-    const eventTypes = published.map((body) => JSON.parse(body).eventType).sort();
+    const eventTypes = published.map((body) => JSON.parse(body).eventType).sort((a, b) => a.localeCompare(b));
     expect(eventTypes).toEqual([
       'WagerTransactionProcessed',
       'WagerTransactionProcessed',

@@ -9,8 +9,8 @@ import { Money } from '../../shared/domain/money.js';
 import { LedgerDirection, WalletLedgerEntry } from '../../wallets/domain/wallet-ledger-entry.js';
 import { Wallet } from '../../wallets/domain/wallet.js';
 import { TransactionContext } from '../../platform/database/transaction-context.js';
-import { CLOCK, Clock } from '../../shared/domain/clock.js';
-import { ID_GENERATOR, IdGenerator } from '../../shared/domain/id-generator.js';
+import type { Clock } from '../../shared/domain/clock.js';
+import type { IdGenerator } from '../../shared/domain/id-generator.js';
 import { OutboxMessage } from '../../messaging/domain/outbox-message.js';
 import {
   WagerTransactionPendingReference,

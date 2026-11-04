@@ -65,7 +65,7 @@ export class SqsConsumer implements OnApplicationBootstrap, OnApplicationShutdow
     this.abortController?.abort();
     const grace = this.env.SHUTDOWN_GRACE_MS;
     await Promise.race([
-      Promise.allSettled([...this.inFlight]),
+      Promise.allSettled(this.inFlight),
       new Promise<void>((resolve) => setTimeout(resolve, grace)),
     ]);
     if (this.loopPromise !== undefined) {
