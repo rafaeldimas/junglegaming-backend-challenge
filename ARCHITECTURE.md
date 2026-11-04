@@ -246,7 +246,7 @@ as a decimal string; the currency is `char(3)`.
 | External id uniqueness | `UNIQUE (provider_id, external_transaction_id)` |
 | One reversal per reference and kind | partial `UNIQUE (reference_transaction_id, kind) WHERE status = 'PROCESSED'` |
 | OPENING is internal | `CHECK (kind <> 'OPENING' OR origin = 'INTERNAL')` |
-| REFUND/ROLLBACK require a reference | `CHECK (kind NOT IN ('REFUND','ROLLBACK') OR reference_external_transaction_id IS NOT NULL)` |
+| REFUND/ROLLBACK require a reference | `CHECK (kind NOT IN ('REFUND','ROLLBACK') OR reference_external_transaction_id IS NOT NULL OR status = 'REJECTED')` (a missing reference is itself a persisted rejection) |
 | No self reference | `CHECK (reference_external_transaction_id <> external_transaction_id)` |
 | Rejection has a code | `CHECK (status NOT IN ('REJECTED','FAILED') OR failure_code IS NOT NULL)` |
 | Inbox dedup | `UNIQUE (consumer_name, message_id)` |

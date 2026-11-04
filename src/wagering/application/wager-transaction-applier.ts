@@ -224,7 +224,11 @@ export class WagerTransactionApplier {
     options: ApplyOptions,
   ): Promise<ApplyOutcome> {
     const now = this.clock.now();
-    transaction.reject(code, now);
+    // The transaction was built already rejected by `createRejected` (the
+    // rejection happens at creation because the reference is missing).
+    if (!transaction.isTerminal()) {
+      transaction.reject(code, now);
+    }
     await ctx.wagerTransactions.update(transaction);
     await ctx.outbox.insertMany([
       OutboxMessage.enqueue(

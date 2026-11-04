@@ -11,6 +11,7 @@ import {
   WalletNotFoundError,
 } from '../src/platform/errors/application-error.js';
 import type { ProcessWagerTransactionUseCase } from '../src/wagering/application/process-wager-transaction.use-case.js';
+import { InvalidTransactionStateError } from '../src/shared/domain/errors.js';
 import { FailureCode } from '../src/wagering/domain/failure-code.js';
 import {
   TransactionOrigin,
@@ -686,6 +687,48 @@ describe('references', () => {
     expect(result.status).toBe(WagerTransactionStatus.Rejected);
     expect(result.failureCode).toBe(FailureCode.AmountMismatch);
     expect((await walletRow(h, wallet.id))!.balance).toBe('75.00');
+  });
+
+  it('rejects a REFUND without a reference and persists the rejection', async () => {
+    const wallet = await createWallet(h, '100.00');
+    const result = await submit(
+      h,
+      commandFor(wallet, {
+        kind: WagerTransactionKind.Refund,
+        money: brl('10.00'),
+      }),
+    );
+
+    expect(result.status).toBe(WagerTransactionStatus.Rejected);
+    expect(result.failureCode).toBe(FailureCode.ReferenceRequired);
+    expect((await walletRow(h, wallet.id))!.balance).toBe('100.00');
+
+    const [events] = await h.sql<{ count: number }>(
+      `select count(*)::int as count from outbox_messages where event_type = 'WagerTransactionRejected'`,
+    );
+    expect(events!.count).toBe(1);
+  });
+
+  it('rejects a reference that points to the transaction itself as invalid input', async () => {
+    const wallet = await createWallet(h, '100.00');
+
+    await expect(
+      submit(
+        h,
+        commandFor(wallet, {
+          kind: WagerTransactionKind.Refund,
+          externalTransactionId: 'self-reference',
+          money: brl('10.00'),
+          referenceExternalTransactionId: 'self-reference',
+        }),
+      ),
+    ).rejects.toBeInstanceOf(InvalidTransactionStateError);
+
+    expect((await walletRow(h, wallet.id))!.balance).toBe('100.00');
+    const [counts] = await h.sql<{ count: number }>(
+      'select count(*)::int as count from wager_transactions',
+    );
+    expect(counts!.count).toBe(1); // only the OPENING
   });
 
   it('rejects a second reversal of the same reference', async () => {

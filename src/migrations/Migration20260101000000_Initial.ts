@@ -53,8 +53,12 @@ export class Migration20260101000000_Initial extends Migration {
         constraint wager_transactions_amount_positive check (amount > 0),
         constraint wager_transactions_currency_format check (currency ~ '^[A-Z]{3}$'),
         constraint wager_transactions_opening_internal check (kind <> 'OPENING' or origin = 'INTERNAL'),
+        -- A missing reference is a rejection reason, so REJECTED rows may keep
+        -- it null for auditability; any non-rejected REFUND/ROLLBACK needs one.
         constraint wager_transactions_reference_required check (
-          kind not in ('REFUND', 'ROLLBACK') or reference_external_transaction_id is not null
+          kind not in ('REFUND', 'ROLLBACK')
+          or reference_external_transaction_id is not null
+          or status = 'REJECTED'
         ),
         constraint wager_transactions_reference_not_self check (
           reference_external_transaction_id is null or reference_external_transaction_id <> external_transaction_id
