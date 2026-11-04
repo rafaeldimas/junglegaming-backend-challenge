@@ -1,0 +1,95 @@
+name: jungle-wagering
+
+services:
+  postgres:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: jungle
+      POSTGRES_PASSWORD: jungle
+      POSTGRES_DB: jungle
+    ports:
+      - '5432:5432'
+    healthcheck:
+      test: ['CMD-SHELL', 'pg_isready -U jungle -d jungle']
+      interval: 2s
+      timeout: 3s
+      retries: 30
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+
+  localstack:
+    image: localstack/localstack:3.8
+    environment:
+      SERVICES: sqs
+      AWS_DEFAULT_REGION: us-east-1
+      # Deterministic account id keeps the queue ARNs stable across runs.
+      DEFAULT_REGION: us-east-1
+    ports:
+      - '4566:4566'
+    healthcheck:
+      test: ['CMD-SHELL', 'curl -sf http://localhost:4566/_localstack/health >/dev/null']
+      interval: 2s
+      timeout: 3s
+      retries: 30
+    volumes:
+      # Creates wager-transactions.fifo, its DLQ and wager-events.fifo.
+      - ./docker/localstack/init-queues.sh:/etc/localstack/init/ready.d/init-queues.sh:ro
+      - localstack-data:/var/lib/localstack
+
+  migrate:
+    build: .
+    command: ['bun', 'run', 'dist/database/migrate.js', 'up']
+    environment:
+      DATABASE_URL: postgresql://jungle:jungle@postgres:5432/jungle
+    depends_on:
+      postgres:
+        condition: service_healthy
+    restart: 'no'
+
+  app:
+    build: .
+    environment: &app-env
+      NODE_ENV: production
+      PORT: 3000
+      DATABASE_URL: postgresql://jungle:jungle@postgres:5432/jungle
+      LOG_LEVEL: info
+      SQS_ENDPOINT: http://localstack:4566
+      AWS_REGION: us-east-1
+      AWS_ACCESS_KEY_ID: test
+      AWS_SECRET_ACCESS_KEY: test
+      SQS_QUEUE_NAME: wager-transactions.fifo
+      SQS_DLQ_NAME: wager-transactions-dlq.fifo
+      SQS_EVENTS_QUEUE_NAME: wager-events.fifo
+      SQS_WAIT_TIME_SECONDS: '20'
+      SQS_VISIBILITY_TIMEOUT_SECONDS: '30'
+      SQS_MAX_ATTEMPTS: '5'
+      OUTBOX_POLL_INTERVAL_MS: '500'
+      PENDING_REFERENCE_POLL_INTERVAL_MS: '5000'
+      SHUTDOWN_GRACE_MS: '10000'
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+      localstack:
+        condition: service_healthy
+    healthcheck:
+      test: ['CMD-SHELL', 'wget -qO- http://127.0.0.1:3000/health/live >/dev/null']
+      interval: 5s
+      timeout: 3s
+      retries: 20
+    # No published port: scale with `--scale app=3` and reach the API through
+    # the load balancer below, which is how the multi-instance scenario runs.
+    restart: unless-stopped
+
+  nginx:
+    image: nginx:1.27-alpine
+    ports:
+      - '8080:80'
+    volumes:
+      - ./docker/nginx/nginx.conf:/etc/nginx/nginx.conf:ro
+    depends_on:
+      app:
+        condition: service_started
+
+volumes:
+  postgres-data:
+  localstack-data:
