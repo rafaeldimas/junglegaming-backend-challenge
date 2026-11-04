@@ -1,6 +1,7 @@
-import { Injectable, Logger } from '@nestjs/common';
+import { Injectable } from '@nestjs/common';
 import type { AppEnv } from '../../config/env.js';
 import { SqsClient } from './sqs.client.js';
+import { logger } from '../../platform/logging/logger.js';
 
 /**
  * Resolves (and, in development, creates) the FIFO main queue and its DLQ.
@@ -12,7 +13,6 @@ export class SqsQueues {
   private dlqUrl?: string;
   private eventsUrl?: string;
   private ensurePromise?: Promise<void>;
-  private readonly logger = new Logger(SqsQueues.name);
 
   constructor(
     private readonly client: SqsClient,
@@ -72,8 +72,13 @@ export class SqsQueues {
       eventsUrl ??= await this.client.createFifoQueue(this.env.SQS_EVENTS_QUEUE_NAME, {
         VisibilityTimeout: String(this.env.SQS_VISIBILITY_TIMEOUT_SECONDS),
       });
-      this.logger.log(
-        `SQS queues ready: ${this.env.SQS_QUEUE_NAME} -> ${this.env.SQS_DLQ_NAME}; events: ${this.env.SQS_EVENTS_QUEUE_NAME}`,
+      logger.info(
+        {
+          queue: this.env.SQS_QUEUE_NAME,
+          dlq: this.env.SQS_DLQ_NAME,
+          events: this.env.SQS_EVENTS_QUEUE_NAME,
+        },
+        'SQS queues ready',
       );
     }
 

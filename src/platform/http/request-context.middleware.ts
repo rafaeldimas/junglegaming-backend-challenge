@@ -1,7 +1,7 @@
 import { Injectable, NestMiddleware } from '@nestjs/common';
 import { NextFunction, Request, Response } from 'express';
 import { v7 as uuidv7 } from 'uuid';
-import { enrichLogContext, runWithLogContext } from '../logging/log-context.js';
+import { runWithLogContext } from '../logging/log-context.js';
 import { logger } from '../logging/logger.js';
 
 const CORRELATION_HEADER = 'x-correlation-id';
@@ -32,9 +32,4 @@ export class RequestContextMiddleware implements NestMiddleware {
       next();
     });
   }
-}
-
-/** Attaches the wallet/transaction ids to the current log context. */
-export function annotateRequestContext(partial: { walletId?: string; transactionId?: string; providerId?: string }): void {
-  enrichLogContext(partial);
 }
