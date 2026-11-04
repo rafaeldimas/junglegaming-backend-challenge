@@ -1,3 +1,4 @@
+import { fileURLToPath } from 'node:url';
 import { Options } from '@mikro-orm/postgresql';
 import { Migrator } from '@mikro-orm/migrations';
 import { AppEnv } from '../../config/env.js';
@@ -19,8 +20,10 @@ export function createOrmConfig(env: AppEnv): Options {
     clientUrl: env.DATABASE_URL,
     extensions: [Migrator],
     migrations: {
-      path: './src/migrations',
-      pathTs: './src/migrations',
+      // Resolves to `src/migrations` in development and `dist/migrations` once
+      // compiled, so the same config works for the CLI and the container.
+      path: fileURLToPath(new URL('../../migrations', import.meta.url)),
+      pathTs: fileURLToPath(new URL('../../migrations', import.meta.url)),
       transactional: true,
       allOrNothing: true,
     },
