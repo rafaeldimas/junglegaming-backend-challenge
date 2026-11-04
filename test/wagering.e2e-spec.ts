@@ -22,6 +22,10 @@ import { SqsConsumer } from '../src/messaging/sqs/sqs-consumer.worker.js';
 import { GetWalletLedgerUseCase } from '../src/wallets/application/wallet-queries.use-case.js';
 import { decodeLedgerCursor } from '../src/wallets/application/cursor.js';
 import type { LedgerCursor } from '../src/wallets/application/ports.js';
+import { Test } from '@nestjs/testing';
+import type { INestApplication } from '@nestjs/common';
+import request from 'supertest';
+import { AppModule } from '../src/app.module.js';
 import { MikroOrmUnitOfWork } from '../src/platform/database/unit-of-work.js';
 import { OutboxPublisherWorker } from '../src/messaging/outbox/outbox-publisher.worker.js';
 import { SqsEventPublisher } from '../src/messaging/sqs/sqs-publisher.js';
@@ -376,11 +380,18 @@ describe('inbox deduplication', () => {
     expect(second.transactionId).toBe(first.transactionId);
     expect((await walletRow(h, wallet.id))!.balance).toBe('75.00');
 
-    const [counts] = await h.sql<{ inbox: number; debits: number }>(
+    const [counts] = await h.sql<{
+      inbox: number;
+      debits: number;
+      outbox: number;
+    }>(
       `select (select count(*)::int from inbox_messages) as inbox,
-              (select count(*)::int from wallet_ledger_entries where direction = 'DEBIT') as debits`,
+              (select count(*)::int from wallet_ledger_entries where direction = 'DEBIT') as debits,
+              (select count(*)::int from outbox_messages) as outbox`,
     );
-    expect(counts).toEqual({ inbox: 1, debits: 1 });
+    // Inbox, ledger and outbox commit in the same transaction: OPENING (2
+    // events) + BET (processed + balance changed).
+    expect(counts).toEqual({ inbox: 1, debits: 1, outbox: 4 });
   });
 
   it('rolls back the inbox row when the financial transaction fails', async () => {
@@ -436,6 +447,39 @@ describe('inbox deduplication', () => {
 });
 
 describe('concurrency', () => {
+  it('records LOSS without moving the balance, the ledger or the version', async () => {
+    const wallet = await createWallet(h, '100.00');
+    const loss = commandFor(wallet, {
+      kind: WagerTransactionKind.Loss,
+      money: brl('10.00'),
+    });
+
+    const result = await submit(h, loss);
+    expect(result.status).toBe(WagerTransactionStatus.Processed);
+
+    const stored = await walletRow(h, wallet.id);
+    expect(stored!.balance).toBe('100.00');
+    expect(stored!.version).toBe(1);
+
+    const [counts] = await h.sql<{
+      entries: number;
+      processed_events: number;
+      balance_events: number;
+    }>(
+      `select
+         (select count(*)::int from wallet_ledger_entries where transaction_id = ?) as entries,
+         (select count(*)::int from outbox_messages where event_type = 'WagerTransactionProcessed') as processed_events,
+         (select count(*)::int from outbox_messages where event_type = 'WalletBalanceChanged') as balance_events`,
+      [result.transactionId],
+    );
+    expect(counts).toEqual({
+      entries: 0,
+      processed_events: 2, // OPENING + LOSS
+      balance_events: 1, // OPENING only
+    });
+    await expectReconciled(wallet.id);
+  });
+
   it('processes the same bet 50 times in parallel as a single debit', async () => {
     const wallet = await createWallet(h, '100.00');
     const command = commandFor(wallet, { money: brl('25.00') });
@@ -1023,6 +1067,222 @@ describe('sqs retries', () => {
       await consumer.onApplicationShutdown();
     }
   }, 120_000);
+});
+
+describe('http api', () => {
+  let app: INestApplication;
+
+  beforeAll(async () => {
+    process.env.DATABASE_URL = h.env.DATABASE_URL;
+    process.env.SQS_ENDPOINT = h.env.SQS_ENDPOINT;
+    process.env.SQS_CONSUMER_ENABLED = 'false';
+    process.env.OUTBOX_PUBLISHER_ENABLED = 'false';
+    process.env.PENDING_REFERENCE_WORKER_ENABLED = 'false';
+    process.env.QUEUE_AUTO_CREATE = 'false';
+
+    const moduleRef = await Test.createTestingModule({
+      imports: [AppModule],
+    }).compile();
+    app = moduleRef.createNestApplication({ logger: false });
+    await app.init();
+  }, 60_000);
+
+  afterAll(async () => {
+    await app?.close();
+  });
+
+  async function createWalletViaHttp(): Promise<{
+    id: string;
+    playerId: string;
+  }> {
+    const playerId = crypto.randomUUID();
+    const response = await request(app.getHttpServer())
+      .post('/wallets')
+      .send({
+        playerId,
+        initialBalance: { amount: '100.00', currency: 'BRL' },
+      })
+      .expect(201);
+    return { id: response.body.id, playerId };
+  }
+
+  it('creates a wallet and rejects a duplicate as 409', async () => {
+    const wallet = await createWalletViaHttp();
+    expect(wallet.id).toMatch(/^[0-9a-f-]{36}$/);
+
+    const response = await request(app.getHttpServer())
+      .post('/wallets')
+      .send({
+        playerId: wallet.playerId,
+        initialBalance: { amount: '1.00', currency: 'BRL' },
+      })
+      .expect(409);
+    expect(response.body.error.code).toBe('WALLET_ALREADY_EXISTS');
+  });
+
+  it('distinguishes processed, replay, conflict, rejection, pending and invalid input', async () => {
+    const wallet = await createWalletViaHttp();
+    const body = {
+      providerId: 'provider-a',
+      externalTransactionId: 'http-1',
+      playerId: wallet.playerId,
+      walletId: wallet.id,
+      roundId: 'round-1',
+      gameId: 'fortune-chimp',
+      kind: 'BET',
+      money: { amount: '25.00', currency: 'BRL' },
+    };
+
+    const processed = await request(app.getHttpServer())
+      .post('/wagering/transactions')
+      .set('Idempotency-Key', 'provider-a:http-1')
+      .send(body)
+      .expect(201);
+    expect(processed.body).toMatchObject({
+      status: 'PROCESSED',
+      idempotentReplay: false,
+      balance: { amount: '75.00', currency: 'BRL' },
+    });
+
+    const replay = await request(app.getHttpServer())
+      .post('/wagering/transactions')
+      .set('Idempotency-Key', 'provider-a:http-1')
+      .send(body)
+      .expect(200);
+    expect(replay.body.idempotentReplay).toBe(true);
+    expect(replay.body.transactionId).toBe(processed.body.transactionId);
+
+    const conflict = await request(app.getHttpServer())
+      .post('/wagering/transactions')
+      .set('Idempotency-Key', 'provider-a:http-1')
+      .send({ ...body, money: { amount: '30.00', currency: 'BRL' } })
+      .expect(409);
+    expect(conflict.body.error.code).toBe('IDEMPOTENCY_CONFLICT');
+
+    const missingKey = await request(app.getHttpServer())
+      .post('/wagering/transactions')
+      .send({ ...body, externalTransactionId: 'http-2' })
+      .expect(400);
+    expect(missingKey.body.error.code).toBe('INVALID_PAYLOAD');
+
+    const opening = await request(app.getHttpServer())
+      .post('/wagering/transactions')
+      .set('Idempotency-Key', 'provider-a:http-opening')
+      .send({ ...body, externalTransactionId: 'http-opening', kind: 'OPENING' })
+      .expect(400);
+    expect(opening.body.error.code).toBe('INVALID_PAYLOAD');
+
+    const rejected = await request(app.getHttpServer())
+      .post('/wagering/transactions')
+      .set('Idempotency-Key', 'provider-a:http-big')
+      .send({
+        ...body,
+        externalTransactionId: 'http-big',
+        money: { amount: '1000.00', currency: 'BRL' },
+      })
+      .expect(422);
+    expect(rejected.body.failureCode).toBe('INSUFFICIENT_FUNDS');
+
+    const pending = await request(app.getHttpServer())
+      .post('/wagering/transactions')
+      .set('Idempotency-Key', 'provider-a:http-refund')
+      .send({
+        ...body,
+        externalTransactionId: 'http-refund',
+        kind: 'REFUND',
+        referenceExternalTransactionId: 'missing-bet',
+      })
+      .expect(202);
+    expect(pending.body.status).toBe('PENDING_REFERENCE');
+
+    const unknownWallet = await request(app.getHttpServer())
+      .post('/wagering/transactions')
+      .set('Idempotency-Key', 'provider-a:http-missing')
+      .send({
+        ...body,
+        externalTransactionId: 'http-missing',
+        walletId: crypto.randomUUID(),
+      })
+      .expect(404);
+    expect(unknownWallet.body.error.code).toBe('WALLET_NOT_FOUND');
+  });
+
+  it('exposes queries, pagination, reconciliation, health and metrics', async () => {
+    const wallet = await createWalletViaHttp();
+    for (let index = 0; index < 3; index += 1) {
+      await request(app.getHttpServer())
+        .post('/wagering/transactions')
+        .set('Idempotency-Key', `provider-a:page-${index}`)
+        .send({
+          providerId: 'provider-a',
+          externalTransactionId: `page-${index}`,
+          playerId: wallet.playerId,
+          walletId: wallet.id,
+          roundId: 'round-page',
+          gameId: 'fortune-chimp',
+          kind: 'BET',
+          money: { amount: '1.00', currency: 'BRL' },
+        })
+        .expect(201);
+    }
+
+    const walletResponse = await request(app.getHttpServer())
+      .get(`/wallets/${wallet.id}`)
+      .expect(200);
+    expect(walletResponse.body.version).toBe(4);
+
+    const firstPage = await request(app.getHttpServer())
+      .get(`/wallets/${wallet.id}/ledger?limit=2`)
+      .expect(200);
+    expect(firstPage.body.entries).toHaveLength(2);
+    expect(firstPage.body.nextCursor).toBeTypeOf('string');
+
+    const secondPage = await request(app.getHttpServer())
+      .get(
+        `/wallets/${wallet.id}/ledger?limit=2&cursor=${encodeURIComponent(firstPage.body.nextCursor)}`,
+      )
+      .expect(200);
+    expect(secondPage.body.entries).toHaveLength(2);
+    expect(secondPage.body.nextCursor).toBeNull();
+
+    const reconciliation = await request(app.getHttpServer())
+      .post(`/wallets/${wallet.id}/reconciliation`)
+      .expect(200);
+    expect(reconciliation.body).toMatchObject({
+      consistent: true,
+      checkedEntries: 4,
+    });
+
+    const byId = await request(app.getHttpServer())
+      .get('/wagering/transactions/' + firstPage.body.entries[0].transactionId)
+      .expect(200);
+    expect(byId.body.status).toBe('PROCESSED');
+
+    const byProvider = await request(app.getHttpServer())
+      .get('/providers/provider-a/wagering/transactions/page-1')
+      .expect(200);
+    expect(byProvider.body.externalTransactionId).toBe('page-1');
+
+    await request(app.getHttpServer())
+      .get(`/wallets/${crypto.randomUUID()}`)
+      .expect(404);
+    await request(app.getHttpServer()).get('/wallets/not-a-uuid').expect(400);
+
+    const live = await request(app.getHttpServer())
+      .get('/health/live')
+      .expect(200);
+    expect(live.body.status).toBe('ok');
+
+    const ready = await request(app.getHttpServer())
+      .get('/health/ready')
+      .expect(200);
+    expect(ready.body.checks).toEqual({ postgres: 'up', sqs: 'up' });
+
+    const metrics = await request(app.getHttpServer())
+      .get('/metrics')
+      .expect(200);
+    expect(metrics.text).toContain('wager_transactions_total');
+  });
 });
 
 describe('reconciliation', () => {
