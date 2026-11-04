@@ -550,6 +550,58 @@ describe('references', () => {
   });
 });
 
+describe('business rejections', () => {
+  it('distinguishes a reversal that would go negative from a normal bet rejection', async () => {
+    const wallet = await createWallet(h, '100.00');
+    const win = commandFor(wallet, { kind: WagerTransactionKind.Win, money: brl('100.00') });
+    await submit(h, win);
+    await submit(h, commandFor(wallet, { money: brl('150.00') }));
+
+    const rollback = await submit(
+      h,
+      commandFor(wallet, {
+        kind: WagerTransactionKind.Rollback,
+        money: brl('100.00'),
+        referenceExternalTransactionId: win.externalTransactionId,
+      }),
+    );
+
+    expect(rollback.status).toBe(WagerTransactionStatus.Rejected);
+    expect(rollback.failureCode).toBe(FailureCode.ReversalInsufficientFunds);
+    expect((await walletRow(h, wallet.id))!.balance).toBe('50.00');
+    await expectReconciled(wallet.id);
+  });
+
+  it('rejects a transaction whose player does not own the wallet', async () => {
+    const wallet = await createWallet(h, '100.00');
+    const result = await submit(h, commandFor(wallet, { playerId: crypto.randomUUID() }));
+
+    expect(result.status).toBe(WagerTransactionStatus.Rejected);
+    expect(result.failureCode).toBe(FailureCode.PlayerWalletMismatch);
+    expect((await walletRow(h, wallet.id))!.balance).toBe('100.00');
+  });
+
+  it('rejects a reference from another round', async () => {
+    const wallet = await createWallet(h, '100.00');
+    const bet = commandFor(wallet, { roundId: 'round-1', money: brl('10.00') });
+    await submit(h, bet);
+
+    const refund = await submit(
+      h,
+      commandFor(wallet, {
+        kind: WagerTransactionKind.Refund,
+        roundId: 'round-2',
+        money: brl('10.00'),
+        referenceExternalTransactionId: bet.externalTransactionId,
+      }),
+    );
+
+    expect(refund.status).toBe(WagerTransactionStatus.Rejected);
+    expect(refund.failureCode).toBe(FailureCode.ReferenceMismatch);
+    expect((await walletRow(h, wallet.id))!.balance).toBe('90.00');
+  });
+});
+
 describe('transactional outbox', () => {
   it('publishes pending events atomically with the financial transaction', async () => {
     await drainQueue(h.env.SQS_EVENTS_QUEUE_NAME);
