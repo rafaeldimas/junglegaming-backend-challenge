@@ -35,8 +35,9 @@ const envSchema = z.object({
   QUEUE_AUTO_CREATE: booleanFromString(true),
 
   OUTBOX_PUBLISHER_ENABLED: booleanFromString(true),
-  OUTBOX_POLL_INTERVAL_MS: intFromString(500, 10),
-  OUTBOX_BATCH_SIZE: intFromString(50, 1),
+  OUTBOX_POLL_INTERVAL_MS: intFromString(100, 10),
+  OUTBOX_BATCH_SIZE: intFromString(200, 1),
+  OUTBOX_PUBLISH_CONCURRENCY: intFromString(8, 1),
 
   PENDING_REFERENCE_WORKER_ENABLED: booleanFromString(true),
   PENDING_REFERENCE_POLL_INTERVAL_MS: intFromString(5000, 10),

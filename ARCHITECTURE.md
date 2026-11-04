@@ -410,8 +410,12 @@ The transaction row, wallet change, ledger entry, inbox row and outbox rows are
 committed in **one** SQL transaction. Publishing never happens before commit.
 
 The publisher claims a batch with `FOR UPDATE SKIP LOCKED` inside its own
-transaction, publishes each event, and marks the rows published before
-committing. Multiple publishers can run; each row is claimed by one at a time.
+transaction, publishes the events and marks the rows published before
+committing. Events are grouped by `aggregateId`: within a group the order is
+preserved, while different groups are published concurrently (bounded by
+`OUTBOX_PUBLISH_CONCURRENCY`), which is what lets a single instance keep up with
+a burst of transactions. Multiple publishers can run; each row is claimed by
+one at a time.
 A crash after publish and before commit republishes; a crash after commit
 before publish leaves the row pending for the next instance. This is
 at-least-once, which is why every event has an `eventId` and consumers
@@ -604,6 +608,12 @@ The Docker Compose stack was also validated manually with three app replicas
 behind nginx: six simultaneous 80.00 bets against a 100.00 wallet produced
 exactly one `PROCESSED`, five `REJECTED`, balance 20.00 and one debit entry.
 
+`bun run test:load` is an optional experiment (not part of the test gate) that
+drives a mixed workload against the Compose deployment and reports throughput,
+latency percentiles, status distribution and a final reconciliation. The
+recorded run, its environment and the outbox backlog analysis are in
+`README.md`.
+
 ## 19. Trade-offs and limitations
 
 - **Pessimistic locking** serializes writes per wallet; a very hot wallet can
@@ -615,6 +625,13 @@ exactly one `PROCESSED`, five `REJECTED`, balance 20.00 and one debit entry.
 - **Outbox publishing inside the claim transaction** holds row locks while
   calling SQS. A slow broker delays other publishers for the same rows, but
   never blocks writers (the outbox is append-only) and never loses events.
+  Under a sustained burst of ~250 transactions/s (≈500 events/s) the local
+  LocalStack broker cannot keep up: the backlog reached ~9 s of lag and drained
+  to zero within 30 s after the burst. See the load experiment in `README.md`.
+- **Cross-aggregate event ordering is not guaranteed** (neither by SQS FIFO,
+  whose ordering is per `MessageGroupId`, nor by concurrent publishers).
+  Consumers correlate through `transactionId`/`causationId` and deduplicate by
+  `eventId`.
 - **At-least-once everywhere**: duplicate events are possible after a crash;
   consumers must deduplicate by `eventId`. Duplicate SQS deliveries are
   deduplicated by the inbox.

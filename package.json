@@ -23,7 +23,8 @@
     "migration:up": "bun run src/database/migrate.ts up",
     "migration:down": "bun run src/database/migrate.ts down",
     "migration:list": "bun run src/database/migrate.ts list",
-    "test:all": "bun run test && bun run test:e2e"
+    "test:all": "bun run test && bun run test:e2e",
+    "test:load": "bun run scripts/load-test.ts"
   },
   "dependencies": {
     "@aws-sdk/client-sqs": "^3.1161.0",

@@ -89,6 +89,7 @@ The service creates the FIFO queues at boot when they are missing
 | `bun run test` | unit tests |
 | `bun run test:e2e` | integration/concurrency tests (Docker required) |
 | `bun run test:all` | unit + e2e |
+| `bun run test:load` | optional load experiment against a running deployment |
 | `bun run lint` | oxlint (type-aware) |
 | `bun run format` | prettier |
 
@@ -225,6 +226,51 @@ schema constraints, atomicity, inbox redelivery, the 50-parallel-bet case, the
 retry exhaustion, concurrent outbox publishers, crash recovery and DLQ routing.
 Every scenario asserts `wallet.balance == ledger sum`.
 
+## Load experiment (optional)
+
+`bun run test:load` drives a mixed workload against a running deployment and
+prints throughput, p50/p95/p99, status distribution and a final reconciliation
+of every wallet. It is a correctness/observability experiment, not a benchmark.
+
+```bash
+docker compose up -d --build --scale app=3
+CONCURRENCY=32 DURATION_SECONDS=15 WALLETS=20 bun run test:load
+```
+
+### Environment and methodology
+
+- local Linux machine, Docker Compose: 3 app replicas (Bun 1.4.4 alpine) behind
+  nginx, PostgreSQL 16, LocalStack 3.8 (SQS), all on the same host;
+- 20 wallets with `1000.00 BRL`, `1.00 BRL` bets, 32 concurrent clients for
+  15 seconds, 10% of requests replaying an already-known idempotency key;
+- latency measured client-side per request; `422`/`409` counted separately from
+  errors (`5xx` and network failures); outbox lag read from PostgreSQL and
+  `/metrics` (per-instance metrics, so the DB query is the aggregate view).
+
+### Result of the recorded run
+
+| Metric | Value |
+|---|---|
+| Requests | 3,878 |
+| Throughput | 256.8 req/s |
+| p50 / p95 / p99 | 113.8 ms / 260.8 ms / 332.5 ms |
+| Error rate | 0.00% |
+| Conflicts (`409`) | 0 |
+| Business rejections (`422`) | 0 |
+| Processed / replayed | 3,478 / 400 |
+| Reconciliation | 20/20 wallets consistent |
+
+Outbox: the burst produces about two events per transaction (~500 events/s),
+which is more than LocalStack can absorb. At the end of the run ~1,982 events
+were still pending with a lag of ~9 s; the backlog drained to **0 pending /
+0 s lag within 30 seconds** after the load stopped. The publisher is tuned with
+`OUTBOX_BATCH_SIZE=200`, `OUTBOX_POLL_INTERVAL_MS=100` and
+`OUTBOX_PUBLISH_CONCURRENCY=8` (per-aggregate ordering preserved, different
+aggregates published concurrently). Raising the concurrency to 16 did not
+improve the result, which points to the local broker rather than the app as the
+bottleneck. Numbers are indicative of this environment and are not a production
+capacity claim.
+
 ## Project layout
 
 ```
@@ -239,6 +285,7 @@ src/
   shared/       Money, clock, ids, domain errors
   wagering/     wager domain, use cases, persistence, controller
   wallets/      wallet domain, use cases, persistence, controller
+scripts/        optional load experiment
 test/           Testcontainers harness and e2e suite
 docker/         LocalStack init script, nginx config
 ```

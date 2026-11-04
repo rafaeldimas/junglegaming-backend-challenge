@@ -47,20 +47,26 @@ export class OutboxPublisherWorker implements OnApplicationBootstrap, OnApplicat
         return;
       }
 
-      for (const message of due) {
-        try {
-          await this.publisher.publish(message.payload);
-          message.markPublished(this.clock.now());
-          metrics.outboxPublished.inc();
-        } catch (error) {
-          message.scheduleRetry(now);
-          metrics.outboxPublishFailures.inc();
-          logger.warn(
-            { eventType: message.eventType, attempts: message.attempts, err: error },
-            'outbox publish failed; retry scheduled',
-          );
+      // Publish per aggregate group: events of the same aggregate keep their
+      // order, while different aggregates are published concurrently. This is
+      // what lets the publisher keep up with a burst of transactions.
+      const groups = groupByAggregate(due);
+      await runWithConcurrency(groups, this.env.OUTBOX_PUBLISH_CONCURRENCY, async (group) => {
+        for (const message of group) {
+          try {
+            await this.publisher.publish(message.payload);
+            message.markPublished(this.clock.now());
+            metrics.outboxPublished.inc();
+          } catch (error) {
+            message.scheduleRetry(now);
+            metrics.outboxPublishFailures.inc();
+            logger.warn(
+              { eventType: message.eventType, attempts: message.attempts, err: error },
+              'outbox publish failed; retry scheduled',
+            );
+          }
         }
-      }
+      });
 
       await ctx.outbox.save(due);
     });
@@ -73,4 +79,35 @@ export class OutboxPublisherWorker implements OnApplicationBootstrap, OnApplicat
         : Math.max(0, (this.clock.now().getTime() - stats.oldestOccurredAt.getTime()) / 1000),
     );
   }
+}
+
+function groupByAggregate<T extends { aggregateId: string }>(messages: T[]): T[][] {
+  const groups = new Map<string, T[]>();
+  for (const message of messages) {
+    const group = groups.get(message.aggregateId);
+    if (group === undefined) {
+      groups.set(message.aggregateId, [message]);
+    } else {
+      group.push(message);
+    }
+  }
+  return [...groups.values()];
+}
+
+async function runWithConcurrency<T>(
+  items: T[],
+  concurrency: number,
+  work: (item: T) => Promise<void>,
+): Promise<void> {
+  const queue = [...items];
+  const workers = Array.from({ length: Math.min(Math.max(concurrency, 1), queue.length) }, async () => {
+    for (;;) {
+      const item = queue.shift();
+      if (item === undefined) {
+        return;
+      }
+      await work(item);
+    }
+  });
+  await Promise.all(workers);
 }
