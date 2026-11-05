@@ -90,6 +90,10 @@ export class MikroOrmOutboxRepository implements OutboxRepository {
 
   async save(messages: OutboxMessage[]): Promise<void> {
     for (const message of messages) {
+      // `findOne` returns the managed row already claimed by `claimDue`, so
+      // `outboxToRow` mutates a tracked entity. Flushing here makes the write
+      // explicit and surfaces constraint errors at save time; the unit of work
+      // would flush again (a no-op) before committing the transaction.
       const row = await this.em.findOne(OutboxRow, { id: message.id });
       if (row === null) {
         throw new Error(
@@ -98,6 +102,7 @@ export class MikroOrmOutboxRepository implements OutboxRepository {
       }
       outboxToRow(message, row);
     }
+    await this.em.flush();
   }
 
   async pendingStats(): Promise<{
